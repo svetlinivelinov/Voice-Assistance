@@ -1,0 +1,26 @@
+﻿name: Docker Build Matrix
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - telephony-service
+          - conversation-engine
+          - calendar-service
+          - crm-service
+          - nlp-intent-service
+          - data-standardization
+          - logging-service
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -f services/${{ matrix.service }}/Dockerfile .

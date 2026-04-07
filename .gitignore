@@ -1,0 +1,34 @@
+# Environment variables
+.env
+ENV.env
+*.env
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+!.vscode/settings.json
+
+# Docker
+.docker-data/
+
+# Coverage
+coverage/
+
+# Temp agent output files
+.tmp_agent_*.txt
+.tmp_npm_*.txt

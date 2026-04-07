@@ -1,0 +1,119 @@
+﻿services:
+  telephony-service:
+    build:
+      context: .
+      dockerfile: services/telephony-service/Dockerfile
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: telephony-service
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$${PORT}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  conversation-engine:
+    build:
+      context: .
+      dockerfile: services/conversation-engine/Dockerfile
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: conversation-engine
+      PORT: 3002
+    ports:
+      - "3002:3002"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$${PORT}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  calendar-service:
+    build:
+      context: .
+      dockerfile: services/calendar-service/Dockerfile
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: calendar-service
+      PORT: 3003
+    ports:
+      - "3003:3003"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$${PORT}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  crm-service:
+    build:
+      context: .
+      dockerfile: services/crm-service/Dockerfile
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: crm-service
+      PORT: 3004
+    ports:
+      - "3004:3004"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$${PORT}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  nlp-intent-service:
+    build:
+      context: .
+      dockerfile: services/nlp-intent-service/Dockerfile
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: nlp-intent-service
+      PORT: 3005
+    ports:
+      - "3005:3005"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$${PORT}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  data-standardization:
+    build:
+      context: .
+      dockerfile: services/data-standardization/Dockerfile
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: data-standardization
+      PORT: 3006
+    ports:
+      - "3006:3006"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$${PORT}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  logging-service:
+    build:
+      context: .
+      dockerfile: services/logging-service/Dockerfile
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: logging-service
+      PORT: 3007
+    ports:
+      - "3007:3007"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$${PORT}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

@@ -1,0 +1,39 @@
+{
+    "name": "real-estate-voice-assistant",
+    "version": "0.1.0",
+    "description": "Modular voice assistant MVP for real estate – call handling, lead qualification, scheduling, CRM logging",
+    "private": true,
+    "workspaces": [
+        "packages/*",
+        "services/*"
+    ],
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "scripts": {
+        "test": "jest --config jest.config.js --coverage --passWithNoTests",
+        "test:watch": "jest --config jest.config.js --watch",
+        "lint": "eslint \"packages/**/*.js\" \"services/**/*.js\"",
+        "lint:fix": "npm run lint -- --fix",
+        "docker:up": "docker compose up --build",
+        "docker:down": "docker compose down"
+    },
+    "dependencies": {
+        "dotenv": "^16.4.0",
+        "express": "^4.21.0",
+        "google-spreadsheet": "^4.1.0",
+        "googleapis": "^140.0.0",
+        "joi": "^17.13.0",
+        "openai": "^4.70.0",
+        "telnyx": "^6.30.0",
+        "uuid": "^10.0.0",
+        "winston": "^3.14.0"
+    },
+    "devDependencies": {
+        "eslint": "^8.57.0",
+        "jest": "^29.7.0",
+        "nock": "^14.0.0",
+        "nodemon": "^3.1.0",
+        "supertest": "^7.0.0"
+    }
+}
