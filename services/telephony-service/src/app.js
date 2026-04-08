@@ -12,6 +12,7 @@ const { logger } = require('./logging/logger');
 const { createWhisperAsrAdapter } = require('./adapters/whisper-asr-adapter');
 const { createElevenLabsTtsAdapter } = require('./adapters/elevenlabs-tts-adapter');
 const { createConversationEngineClient } = require('./clients/conversation-engine-client');
+const { createCrmServiceClient } = require('./clients/crm-service-client');
 
 function createApp(configOverride) {
   const app = express();
@@ -23,6 +24,7 @@ function createApp(configOverride) {
   app.locals.asrAdapter = createWhisperAsrAdapter(config, logger);
   app.locals.ttsAdapter = createElevenLabsTtsAdapter(config, logger);
   app.locals.conversationClient = createConversationEngineClient(config, logger);
+  app.locals.crmClient = createCrmServiceClient(config, logger);
 
   app.use(express.json({
     verify: (req, _res, buf) => {

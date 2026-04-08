@@ -4,11 +4,15 @@ async function executeAction({
   action,
   session,
   payload,
+  callSessionStore,
   telnyxClient,
   asrAdapter,
   ttsAdapter,
   conversationClient,
+  crmClient,
   conversationEngineEnabled,
+  crmServiceEnabled,
+  asrMinConfidence = 0.6,
   greetingMessage,
   logger,
   requestId
@@ -44,6 +48,25 @@ async function executeAction({
         })
         : { status: 'skipped', reason: 'asr_adapter_not_available' };
 
+      const extractedEntities = asr.status === 'ok' && asr.transcript
+        ? extractEntitiesFromTranscript(asr.transcript)
+        : {};
+
+      const asrConfidence = typeof asr?.confidence === 'number' ? asr.confidence : null;
+      const isLowConfidence = asr.status === 'ok' && asrConfidence !== null && asrConfidence < asrMinConfidence;
+
+      if (callSessionStore && session?.callControlId && extractedEntities && Object.keys(extractedEntities).length) {
+        callSessionStore.upsert(session.callControlId, (previous) => ({
+          ...previous,
+          latestTranscript: asr.transcript,
+          latestEntities: {
+            ...(previous?.latestEntities || {}),
+            ...extractedEntities
+          },
+          updatedAt: new Date().toISOString()
+        }));
+      }
+
       let responseText = asr.status === 'ok' && asr.transcript
         ? `Thanks, I heard: ${asr.transcript}. How can I help further?`
         : greetingMessage;
@@ -52,12 +75,16 @@ async function executeAction({
         reason: 'conversation_engine_not_enabled'
       };
 
-      if (conversationEngineEnabled && conversationClient && session?.sessionId) {
-        try {
-          const extractedEntities = asr.status === 'ok' && asr.transcript
-            ? extractEntitiesFromTranscript(asr.transcript)
-            : {};
+      if (isLowConfidence) {
+        responseText = 'Sorry, I did not catch that clearly. Could you please repeat in a short sentence?';
+        conversation = {
+          status: 'skipped',
+          reason: 'asr_low_confidence'
+        };
+      }
 
+      if (!isLowConfidence && conversationEngineEnabled && conversationClient && session?.sessionId) {
+        try {
           const conversationResponse = await conversationClient.planReply({
             sessionId: session.sessionId,
             intent: asr.status === 'ok' && asr.transcript ? 'collect_requirements' : 'unknown',
@@ -129,6 +156,56 @@ async function executeAction({
   }
 
   if (action === 'close_call_session') {
+    if (crmServiceEnabled && crmClient && session?.sessionId && !session?.crmPersistedAt) {
+      try {
+        const lead = {
+          client_id: session.sessionId,
+          phone: session?.latestEntities?.phone || payload?.data?.payload?.from,
+          name: session?.latestEntities?.name,
+          budget: session?.latestEntities?.budget,
+          location: session?.latestEntities?.location,
+          property_type: session?.latestEntities?.property_type,
+          move_in_date: session?.latestEntities?.move_in_date,
+          viewing_date: session?.latestEntities?.viewing_date,
+          notes: session?.latestTranscript || 'Partial lead captured from interrupted call',
+          status: 'new',
+          session_id: session.sessionId
+        };
+
+        await crmClient.upsertLead(lead);
+
+        if (callSessionStore && session?.callControlId) {
+          callSessionStore.upsert(session.callControlId, (previous) => ({
+            ...previous,
+            crmPersistedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }));
+        }
+
+        return {
+          status: 'closed',
+          crm: {
+            status: 'persisted_partial_lead'
+          }
+        };
+      } catch (error) {
+        logger.error({
+          message: 'Failed to persist partial lead on call close',
+          requestId,
+          sessionId: session.sessionId,
+          reason: error.message
+        });
+
+        return {
+          status: 'closed',
+          crm: {
+            status: 'failed',
+            reason: error.message
+          }
+        };
+      }
+    }
+
     return {
       status: 'closed'
     };

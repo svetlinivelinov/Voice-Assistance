@@ -14,6 +14,7 @@ const envSchema = Joi.object({
   OPENAI_API_KEY: Joi.string().allow('').default(''),
   OPENAI_WHISPER_MODEL: Joi.string().default('whisper-1'),
   ASR_TIMEOUT_MS: Joi.number().integer().min(100).default(10000),
+  ASR_MIN_CONFIDENCE: Joi.number().min(0).max(1).default(0.6),
   TTS_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(true),
   ELEVENLABS_API_KEY: Joi.string().allow('').default(''),
   ELEVENLABS_VOICE_ID: Joi.string().allow('').default(''),
@@ -21,7 +22,10 @@ const envSchema = Joi.object({
   TTS_TIMEOUT_MS: Joi.number().integer().min(100).default(10000),
   CONVERSATION_ENGINE_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(false),
   CONVERSATION_ENGINE_BASE_URL: Joi.string().uri().default('http://localhost:3002'),
-  CONVERSATION_ENGINE_TIMEOUT_MS: Joi.number().integer().min(100).default(2500)
+  CONVERSATION_ENGINE_TIMEOUT_MS: Joi.number().integer().min(100).default(2500),
+  CRM_SERVICE_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(false),
+  CRM_SERVICE_BASE_URL: Joi.string().uri().default('http://localhost:3004'),
+  CRM_SERVICE_TIMEOUT_MS: Joi.number().integer().min(100).default(2500)
 });
 
 function getConfig(env = process.env) {
@@ -41,6 +45,7 @@ function getConfig(env = process.env) {
     openaiApiKey: validated.OPENAI_API_KEY,
     openaiWhisperModel: validated.OPENAI_WHISPER_MODEL,
     asrTimeoutMs: Number(validated.ASR_TIMEOUT_MS),
+    asrMinConfidence: Number(validated.ASR_MIN_CONFIDENCE),
     ttsEnabled: validated.TTS_ENABLED,
     elevenlabsApiKey: validated.ELEVENLABS_API_KEY,
     elevenlabsVoiceId: validated.ELEVENLABS_VOICE_ID,
@@ -48,7 +53,10 @@ function getConfig(env = process.env) {
     ttsTimeoutMs: Number(validated.TTS_TIMEOUT_MS),
     conversationEngineEnabled: validated.CONVERSATION_ENGINE_ENABLED,
     conversationEngineBaseUrl: validated.CONVERSATION_ENGINE_BASE_URL,
-    conversationEngineTimeoutMs: Number(validated.CONVERSATION_ENGINE_TIMEOUT_MS)
+    conversationEngineTimeoutMs: Number(validated.CONVERSATION_ENGINE_TIMEOUT_MS),
+    crmServiceEnabled: validated.CRM_SERVICE_ENABLED,
+    crmServiceBaseUrl: validated.CRM_SERVICE_BASE_URL,
+    crmServiceTimeoutMs: Number(validated.CRM_SERVICE_TIMEOUT_MS)
   };
 }
 

@@ -63,7 +63,8 @@ function createWhisperAsrAdapter(config, logger) {
           const payload = await response.json();
           return {
             status: 'ok',
-            transcript: payload.text || ''
+            transcript: payload.text || '',
+            confidence: typeof payload.confidence === 'number' ? payload.confidence : undefined
           };
         } finally {
           clearTimeout(timeout);

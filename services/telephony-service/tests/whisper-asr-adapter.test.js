@@ -62,6 +62,11 @@ describe('createWhisperAsrAdapter', () => {
     const audio = Buffer.from('fake-audio').toString('base64');
     const result = await adapter.transcribeAudio({ audioBase64: audio, mimeType: 'audio/wav' });
 
-    expect(result).toEqual({ status: 'ok', transcript: 'hello world' });
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'ok',
+        transcript: 'hello world'
+      })
+    );
   });
 });
