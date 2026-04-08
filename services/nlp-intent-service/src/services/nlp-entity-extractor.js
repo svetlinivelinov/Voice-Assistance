@@ -47,7 +47,10 @@ const LOCATION_PATTERNS = [
   /\bin\s+([A-Z][a-zA-Z\s]{2,25?})(?:\s+area|\s+district|\s+neighbourhood|\s+neighborhood)\b/i,
   /\bnear\s+([A-Z][a-zA-Z\s]{2,25?})(?:[,.]|$)/i,
   /\b([A-Z][a-zA-Z\s]{2,25?})\s+(?:area|district|neighbourhood|neighborhood)\b/i,
-  /\bdowntown\s+([A-Z][a-zA-Z\s]{2,25?})(?:[,.]|$)/i
+  /\bdowntown\s+([A-Z][a-zA-Z\s]{2,25?})(?:[,.]|$)/i,
+  // Fallback: "in [Capitalized City]" — matches "in Austin", "in New York", "in San Francisco"
+  // Uses strict uppercase [A-Z] (no /i flag) so it won't match "in a", "in the", "in 2", etc.
+  /\bin\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/
 ];
 
 function extractPropertyType(text) {
