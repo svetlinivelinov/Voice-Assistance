@@ -25,6 +25,7 @@ router.post('/webhooks', verifyTelnyxSignature, async (req, res) => {
     ttsAdapter: req.app.locals.ttsAdapter,
     conversationClient: req.app.locals.conversationClient,
     crmClient: req.app.locals.crmClient,
+    nlpClient: req.app.locals.nlpClient,
     conversationEngineEnabled: req.app.locals.config.conversationEngineEnabled,
     crmServiceEnabled: req.app.locals.config.crmServiceEnabled,
     asrMinConfidence: req.app.locals.config.asrMinConfidence,

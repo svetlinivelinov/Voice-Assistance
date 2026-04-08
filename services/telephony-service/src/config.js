@@ -25,7 +25,10 @@ const envSchema = Joi.object({
   CONVERSATION_ENGINE_TIMEOUT_MS: Joi.number().integer().min(100).default(2500),
   CRM_SERVICE_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(false),
   CRM_SERVICE_BASE_URL: Joi.string().uri().default('http://localhost:3004'),
-  CRM_SERVICE_TIMEOUT_MS: Joi.number().integer().min(100).default(2500)
+  CRM_SERVICE_TIMEOUT_MS: Joi.number().integer().min(100).default(2500),
+  NLP_SERVICE_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(false),
+  NLP_SERVICE_BASE_URL: Joi.string().uri().default('http://localhost:3005'),
+  NLP_SERVICE_TIMEOUT_MS: Joi.number().integer().min(100).default(2500)
 });
 
 function getConfig(env = process.env) {
@@ -56,7 +59,10 @@ function getConfig(env = process.env) {
     conversationEngineTimeoutMs: Number(validated.CONVERSATION_ENGINE_TIMEOUT_MS),
     crmServiceEnabled: validated.CRM_SERVICE_ENABLED,
     crmServiceBaseUrl: validated.CRM_SERVICE_BASE_URL,
-    crmServiceTimeoutMs: Number(validated.CRM_SERVICE_TIMEOUT_MS)
+    crmServiceTimeoutMs: Number(validated.CRM_SERVICE_TIMEOUT_MS),
+    nlpServiceEnabled: validated.NLP_SERVICE_ENABLED,
+    nlpServiceBaseUrl: validated.NLP_SERVICE_BASE_URL,
+    nlpServiceTimeoutMs: Number(validated.NLP_SERVICE_TIMEOUT_MS)
   };
 }
 

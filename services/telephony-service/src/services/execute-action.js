@@ -10,6 +10,7 @@ async function executeAction({
   ttsAdapter,
   conversationClient,
   crmClient,
+  nlpClient,
   conversationEngineEnabled,
   crmServiceEnabled,
   asrMinConfidence = 0.6,
@@ -79,7 +80,9 @@ async function executeAction({
         : { status: 'skipped', reason: 'asr_adapter_not_available' };
 
       const extractedEntities = asr.status === 'ok' && asr.transcript
-        ? extractEntitiesFromTranscript(asr.transcript)
+        ? (nlpClient
+            ? await nlpClient.extractEntities(asr.transcript).catch(() => extractEntitiesFromTranscript(asr.transcript))
+            : extractEntitiesFromTranscript(asr.transcript))
         : {};
 
       const asrConfidence = typeof asr?.confidence === 'number' ? asr.confidence : null;

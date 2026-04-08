@@ -5,7 +5,7 @@ const { getConfig } = require('./config');
 const requestContext = require('./middleware/request-context');
 const errorHandler = require('./middleware/error-handler');
 const healthRoutes = require('./routes/health');
-const placeholderRoutes = require('./routes/classify');
+const nlpRoutes = require('./routes/classify');
 
 function createApp(configOverride) {
   const app = express();
@@ -17,7 +17,7 @@ function createApp(configOverride) {
   app.use(requestContext);
 
   app.use('/', healthRoutes);
-  app.use('/api', placeholderRoutes);
+  app.use('/api', nlpRoutes);
 
   app.use((req, _res, next) => {
     const err = new Error('Not Found');
