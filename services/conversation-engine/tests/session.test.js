@@ -153,4 +153,60 @@ describe('conversation-engine session routes', () => {
     expect(fallbackResponse.body?.data?.session?.step).toBe('collect_phone');
     expect(fallbackResponse.body?.data?.reply_text).toBe('I did not catch that. Could you repeat your phone?');
   });
+
+  test('POST /api/session/:sessionId/feedback stores thumbs up/down feedback', async () => {
+    const app = createApp(baseConfig);
+
+    await request(app)
+      .post('/api/session')
+      .send({
+        session_id: 'session-feedback-1',
+        entities: {
+          name: 'Feedback User'
+        }
+      });
+
+    const response = await request(app)
+      .post('/api/session/session-feedback-1/feedback')
+      .send({
+        rating: 'thumbs_down',
+        reason: 'Prompt was too fast'
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body?.data).toEqual(
+      expect.objectContaining({
+        session_id: 'session-feedback-1',
+        feedback: expect.objectContaining({
+          rating: 'thumbs_down',
+          reason: 'Prompt was too fast',
+          timestamp: expect.any(String)
+        })
+      })
+    );
+  });
+
+  test('GET /api/session/:sessionId/feedback returns stored feedback and 404 if absent', async () => {
+    const app = createApp(baseConfig);
+
+    await request(app)
+      .post('/api/session')
+      .send({
+        session_id: 'session-feedback-2',
+        entities: {
+          name: 'Reader User'
+        }
+      });
+
+    const notFound = await request(app).get('/api/session/session-feedback-2/feedback');
+    expect(notFound.status).toBe(404);
+
+    await request(app)
+      .post('/api/session/session-feedback-2/feedback')
+      .send({ rating: 'thumbs_up', reason: '' });
+
+    const response = await request(app).get('/api/session/session-feedback-2/feedback');
+    expect(response.status).toBe(200);
+    expect(response.body?.data?.feedback?.rating).toBe('thumbs_up');
+  });
 });

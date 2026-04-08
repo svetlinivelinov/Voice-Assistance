@@ -109,6 +109,13 @@ router.post('/bookings', async (req, res) => {
     });
 
     if (hasConflict(existingEvents, value.start_datetime, value.end_datetime)) {
+      const alternativeSlots = findAvailableSlots({
+        existingEvents,
+        timeZone: value.time_zone || config.calendarTimeZone,
+        maxSlots: 3,
+        from: new Date(value.start_datetime)
+      });
+
       return errorResponse(
         res,
         ERROR_CODES.BAD_REQUEST,
@@ -116,7 +123,8 @@ router.post('/bookings', async (req, res) => {
         {
           requestId: req.requestId,
           start_datetime: value.start_datetime,
-          end_datetime: value.end_datetime
+          end_datetime: value.end_datetime,
+          alternative_slots: alternativeSlots
         },
         409
       );

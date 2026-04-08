@@ -117,6 +117,9 @@ describe('POST /api/bookings', () => {
 
     expect(response.status).toBe(409);
     expect(response.body?.error?.code).toBe('BAD_REQUEST');
+    expect(Array.isArray(response.body?.error?.details?.alternative_slots)).toBe(true);
+    expect(response.body.error.details.alternative_slots.length).toBeGreaterThan(0);
+    expect(response.body.error.details.alternative_slots.length).toBeLessThanOrEqual(3);
   });
 
   test('creates booking and returns event details linked to session', async () => {

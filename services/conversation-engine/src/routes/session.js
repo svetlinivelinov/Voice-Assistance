@@ -17,6 +17,11 @@ const incomingSessionSchema = Joi.object({
   entities: Joi.object().default({})
 });
 
+const sessionFeedbackSchema = Joi.object({
+  rating: Joi.string().valid('thumbs_up', 'thumbs_down').required(),
+  reason: Joi.string().allow('').max(200).default('')
+});
+
 router.post('/session', (req, res) => {
   if (!req.app.locals.config.conversationStateMachineEnabled) {
     return errorResponse(
@@ -99,6 +104,94 @@ router.get('/session/:sessionId', (req, res) => {
 
   return ok(res, {
     session,
+    requestId: req.requestId
+  });
+});
+
+router.post('/session/:sessionId/feedback', (req, res) => {
+  const session = req.app.locals.sessionStore.get(req.params.sessionId);
+
+  if (!session) {
+    return errorResponse(
+      res,
+      ERROR_CODES.NOT_FOUND,
+      'Session not found',
+      {
+        requestId: req.requestId,
+        route: '/api/session/:sessionId/feedback',
+        session_id: req.params.sessionId
+      },
+      404
+    );
+  }
+
+  const { error: validationError, value } = sessionFeedbackSchema.validate(req.body, {
+    abortEarly: false,
+    stripUnknown: true
+  });
+
+  if (validationError) {
+    return errorResponse(
+      res,
+      ERROR_CODES.VALIDATION_ERROR,
+      'Invalid session feedback payload',
+      {
+        requestId: req.requestId,
+        route: '/api/session/:sessionId/feedback',
+        issues: validationError.details.map((detail) => detail.message)
+      },
+      400
+    );
+  }
+
+  const feedback = req.app.locals.sessionStore.setFeedback(req.params.sessionId, {
+    rating: value.rating,
+    reason: value.reason
+  });
+
+  return ok(res, {
+    feedback,
+    session_id: req.params.sessionId,
+    requestId: req.requestId
+  });
+});
+
+router.get('/session/:sessionId/feedback', (req, res) => {
+  const session = req.app.locals.sessionStore.get(req.params.sessionId);
+
+  if (!session) {
+    return errorResponse(
+      res,
+      ERROR_CODES.NOT_FOUND,
+      'Session not found',
+      {
+        requestId: req.requestId,
+        route: '/api/session/:sessionId/feedback',
+        session_id: req.params.sessionId
+      },
+      404
+    );
+  }
+
+  const feedback = req.app.locals.sessionStore.getFeedback(req.params.sessionId);
+
+  if (!feedback) {
+    return errorResponse(
+      res,
+      ERROR_CODES.NOT_FOUND,
+      'Session feedback not found',
+      {
+        requestId: req.requestId,
+        route: '/api/session/:sessionId/feedback',
+        session_id: req.params.sessionId
+      },
+      404
+    );
+  }
+
+  return ok(res, {
+    feedback,
+    session_id: req.params.sessionId,
     requestId: req.requestId
   });
 });
