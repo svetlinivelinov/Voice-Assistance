@@ -6,12 +6,16 @@ const requestContext = require('./middleware/request-context');
 const errorHandler = require('./middleware/error-handler');
 const healthRoutes = require('./routes/health');
 const placeholderRoutes = require('./routes/bookings');
+const { createGoogleCalendarClient } = require('./clients/google-calendar-client');
 
 function createApp(configOverride) {
   const app = express();
   const config = configOverride || getConfig();
 
   app.locals.config = config;
+  app.locals.calendarClient = config.googleCalendarEnabled
+    ? createGoogleCalendarClient(config)
+    : null;
 
   app.use(express.json());
   app.use(requestContext);
