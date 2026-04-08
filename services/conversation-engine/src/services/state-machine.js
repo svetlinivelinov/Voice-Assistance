@@ -100,5 +100,11 @@ function buildNextSessionState({ previousSession, incomingSession }) {
 
 module.exports = {
   buildNextSessionState,
+  normalizeEntities,
+  hasEntityUpdates,
+  resolveMissingFields,
+  resolveStep,
+  resolveIntent,
+  resolveReplyText,
   REQUIRED_FIELDS
 };

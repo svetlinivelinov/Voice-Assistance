@@ -1,3 +1,5 @@
+const { extractEntitiesFromTranscript } = require('../utils/entity-extractor');
+
 async function executeAction({
   action,
   session,
@@ -52,10 +54,14 @@ async function executeAction({
 
       if (conversationEngineEnabled && conversationClient && session?.sessionId) {
         try {
+          const extractedEntities = asr.status === 'ok' && asr.transcript
+            ? extractEntitiesFromTranscript(asr.transcript)
+            : {};
+
           const conversationResponse = await conversationClient.planReply({
             sessionId: session.sessionId,
             intent: asr.status === 'ok' && asr.transcript ? 'collect_requirements' : 'unknown',
-            entities: {}
+            entities: extractedEntities
           });
 
           const plannedReply = conversationResponse?.data?.reply_text;

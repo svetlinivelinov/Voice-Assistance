@@ -120,4 +120,96 @@ describe('telephony-service call.answered integration flow', () => {
     const telnyxSpeakPayload = JSON.parse(fetchMock.mock.calls[2][1].body);
     expect(telnyxSpeakPayload.payload).toContain('I need a two-bedroom apartment');
   });
+
+  test('uses conversation-engine planned reply when enabled', async () => {
+    const webhookBody = {
+      data: {
+        event_type: 'call.answered',
+        payload: {
+          call_control_id: 'call-ce-456',
+          audio_base64: Buffer.from('fake-audio').toString('base64'),
+          audio_mime_type: 'audio/wav'
+        }
+      }
+    };
+
+    const payload = JSON.stringify(webhookBody);
+    const signed = await buildSignedWebhook(payload);
+
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      // 1. Whisper ASR
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ text: 'I want an apartment with a budget of 1500' })
+      })
+      // 2. Conversation-engine /api/session
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            session: { step: 'collect_location', missing_fields: ['location', 'move_in_date', 'viewing_date'] },
+            reply_text: 'Which area are you interested in?'
+          }
+        })
+      })
+      // 3. ElevenLabs TTS
+      .mockResolvedValueOnce({
+        ok: true,
+        arrayBuffer: async () => Buffer.from('tts-audio')
+      })
+      // 4. Telnyx speak
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200
+      });
+
+    const app = createApp({
+      nodeEnv: 'test',
+      serviceName: 'telephony-service',
+      port: 3001,
+      telnyxPublicKey: signed.publicKey,
+      telnyxApiKey: 'telnyx-test-key',
+      telnyxApiBaseUrl: 'https://api.telnyx.com/v2',
+      telnyxApiTimeoutMs: 5000,
+      maxRetries: 1,
+      voiceLoopGreeting: 'Hello from assistant',
+      asrEnabled: true,
+      openaiApiKey: 'openai-test-key',
+      openaiWhisperModel: 'whisper-1',
+      asrTimeoutMs: 5000,
+      ttsEnabled: true,
+      elevenlabsApiKey: 'elevenlabs-test-key',
+      elevenlabsVoiceId: 'voice-test-1',
+      elevenlabsModel: 'eleven_multilingual_v2',
+      ttsTimeoutMs: 5000,
+      conversationEngineEnabled: true,
+      conversationEngineBaseUrl: 'http://localhost:3002',
+      conversationEngineTimeoutMs: 2500
+    });
+
+    const response = await request(app)
+      .post('/api/webhooks')
+      .set('content-type', 'application/json')
+      .set('telnyx-timestamp', signed.timestamp)
+      .set('telnyx-signature-ed25519', signed.signature)
+      .send(payload);
+
+    expect(response.status).toBe(200);
+    expect(response.body?.data?.execution?.status).toBe('invoked');
+    expect(response.body?.data?.execution?.conversation).toEqual(
+      expect.objectContaining({ status: 'ok', step: 'collect_location' })
+    );
+
+    // CE call must include entities extracted from transcript
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    const ceCallBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(ceCallBody.entities).toEqual(
+      expect.objectContaining({ property_type: 'apartment', budget: '1500' })
+    );
+
+    // Telnyx speak must use the CE-planned reply, not the raw ASR echo
+    const telnyxBody = JSON.parse(fetchMock.mock.calls[3][1].body);
+    expect(telnyxBody.payload).toBe('Which area are you interested in?');
+  });
 });
