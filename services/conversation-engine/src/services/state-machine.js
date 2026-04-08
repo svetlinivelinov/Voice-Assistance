@@ -31,6 +31,10 @@ function normalizeEntities(entities) {
   }, {});
 }
 
+function hasEntityUpdates(previousEntities, incomingEntities) {
+  return Object.entries(incomingEntities).some(([key, value]) => previousEntities[key] !== value);
+}
+
 function resolveMissingFields(entities) {
   return REQUIRED_FIELDS.filter((field) => !entities[field]);
 }
@@ -51,30 +55,45 @@ function resolveIntent(providedIntent, missingFields) {
   return missingFields.length ? 'collect_requirements' : 'schedule_viewing';
 }
 
-function resolveReplyText(missingFields) {
+function resolveReplyText({ missingFields, hasNewEntityData, intent }) {
   if (!missingFields.length) {
     return 'Great, I have all required details. I can proceed to scheduling options.';
+  }
+
+  if (!hasNewEntityData && (intent === 'fallback' || intent === 'unknown')) {
+    return `I did not catch that. Could you repeat your ${missingFields[0]}?`;
   }
 
   return FIELD_PROMPTS[missingFields[0]];
 }
 
 function buildNextSessionState({ previousSession, incomingSession }) {
+  const normalizedIncomingEntities = normalizeEntities(incomingSession.entities);
   const mergedEntities = {
     ...(previousSession?.entities || {}),
-    ...normalizeEntities(incomingSession.entities)
+    ...normalizedIncomingEntities
   };
 
   const missingFields = resolveMissingFields(mergedEntities);
   const timestamp = new Date().toISOString();
+  const hasNewEntityData = hasEntityUpdates(previousSession?.entities || {}, normalizedIncomingEntities);
 
-  return {
+  const nextSession = {
     session_id: incomingSession.session_id,
     step: resolveStep(missingFields),
     intent: resolveIntent(incomingSession.intent, missingFields),
     entities: mergedEntities,
     missing_fields: missingFields,
     timestamp
+  };
+
+  return {
+    session: nextSession,
+    replyText: resolveReplyText({
+      missingFields,
+      hasNewEntityData,
+      intent: incomingSession.intent
+    })
   };
 }
 

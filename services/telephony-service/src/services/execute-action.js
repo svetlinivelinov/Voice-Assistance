@@ -5,6 +5,8 @@ async function executeAction({
   telnyxClient,
   asrAdapter,
   ttsAdapter,
+  conversationClient,
+  conversationEngineEnabled,
   greetingMessage,
   logger,
   requestId
@@ -40,9 +42,43 @@ async function executeAction({
         })
         : { status: 'skipped', reason: 'asr_adapter_not_available' };
 
-      const responseText = asr.status === 'ok' && asr.transcript
+      let responseText = asr.status === 'ok' && asr.transcript
         ? `Thanks, I heard: ${asr.transcript}. How can I help further?`
         : greetingMessage;
+      let conversation = {
+        status: 'skipped',
+        reason: 'conversation_engine_not_enabled'
+      };
+
+      if (conversationEngineEnabled && conversationClient && session?.sessionId) {
+        try {
+          const conversationResponse = await conversationClient.planReply({
+            sessionId: session.sessionId,
+            intent: asr.status === 'ok' && asr.transcript ? 'collect_requirements' : 'unknown',
+            entities: {}
+          });
+
+          const plannedReply = conversationResponse?.data?.reply_text;
+          if (plannedReply) {
+            responseText = plannedReply;
+          }
+
+          conversation = {
+            status: 'ok',
+            step: conversationResponse?.data?.session?.step || 'unknown'
+          };
+        } catch (error) {
+          logger.error({
+            message: 'Failed to plan response with conversation-engine',
+            requestId,
+            reason: error.message
+          });
+          conversation = {
+            status: 'failed',
+            reason: error.message
+          };
+        }
+      }
 
       const tts = ttsAdapter
         ? await ttsAdapter.synthesizeText({ text: responseText })
@@ -66,6 +102,7 @@ async function executeAction({
         providerAction: 'speak',
         asr,
         tts,
+        conversation,
         metrics: {
           voiceTurnLatencyMs: Date.now() - startedAt
         }

@@ -18,7 +18,10 @@ const envSchema = Joi.object({
   ELEVENLABS_API_KEY: Joi.string().allow('').default(''),
   ELEVENLABS_VOICE_ID: Joi.string().allow('').default(''),
   ELEVENLABS_MODEL: Joi.string().default('eleven_multilingual_v2'),
-  TTS_TIMEOUT_MS: Joi.number().integer().min(100).default(10000)
+  TTS_TIMEOUT_MS: Joi.number().integer().min(100).default(10000),
+  CONVERSATION_ENGINE_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(false),
+  CONVERSATION_ENGINE_BASE_URL: Joi.string().uri().default('http://localhost:3002'),
+  CONVERSATION_ENGINE_TIMEOUT_MS: Joi.number().integer().min(100).default(2500)
 });
 
 function getConfig(env = process.env) {
@@ -42,7 +45,10 @@ function getConfig(env = process.env) {
     elevenlabsApiKey: validated.ELEVENLABS_API_KEY,
     elevenlabsVoiceId: validated.ELEVENLABS_VOICE_ID,
     elevenlabsModel: validated.ELEVENLABS_MODEL,
-    ttsTimeoutMs: Number(validated.TTS_TIMEOUT_MS)
+    ttsTimeoutMs: Number(validated.TTS_TIMEOUT_MS),
+    conversationEngineEnabled: validated.CONVERSATION_ENGINE_ENABLED,
+    conversationEngineBaseUrl: validated.CONVERSATION_ENGINE_BASE_URL,
+    conversationEngineTimeoutMs: Number(validated.CONVERSATION_ENGINE_TIMEOUT_MS)
   };
 }
 

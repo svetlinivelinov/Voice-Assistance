@@ -21,6 +21,8 @@ router.post('/webhooks', verifyTelnyxSignature, async (req, res) => {
     telnyxClient: req.app.locals.telnyxClient,
     asrAdapter: req.app.locals.asrAdapter,
     ttsAdapter: req.app.locals.ttsAdapter,
+    conversationClient: req.app.locals.conversationClient,
+    conversationEngineEnabled: req.app.locals.config.conversationEngineEnabled,
     greetingMessage: req.app.locals.config.voiceLoopGreeting,
     logger,
     requestId: req.requestId

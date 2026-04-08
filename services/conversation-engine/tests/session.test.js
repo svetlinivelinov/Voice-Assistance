@@ -128,4 +128,29 @@ describe('conversation-engine session routes', () => {
     expect(response.status).toBe(403);
     expect(response.body?.error?.code).toBe('FORBIDDEN');
   });
+
+  test('POST /api/session returns deterministic fallback prompt for unknown turn', async () => {
+    const app = createApp(baseConfig);
+
+    await request(app)
+      .post('/api/session')
+      .send({
+        session_id: 'session-fallback',
+        entities: {
+          name: 'Fallback User'
+        }
+      });
+
+    const fallbackResponse = await request(app)
+      .post('/api/session')
+      .send({
+        session_id: 'session-fallback',
+        intent: 'unknown',
+        entities: {}
+      });
+
+    expect(fallbackResponse.status).toBe(200);
+    expect(fallbackResponse.body?.data?.session?.step).toBe('collect_phone');
+    expect(fallbackResponse.body?.data?.reply_text).toBe('I did not catch that. Could you repeat your phone?');
+  });
 });
