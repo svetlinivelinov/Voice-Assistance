@@ -1,5 +1,27 @@
 const { extractEntitiesFromTranscript } = require('../utils/entity-extractor');
 
+function extractGatherInput(payload) {
+  const data = payload?.data?.payload || {};
+  const transcript = [
+    data.transcription_text,
+    data.transcript,
+    data.text,
+    data?.speech?.text
+  ].find((value) => typeof value === 'string' && value.trim());
+
+  const digitsValue = [data.digits, data.dtmf, data.dtmf_digits]
+    .find((value) => value !== undefined && value !== null);
+
+  const digits = typeof digitsValue === 'string' || typeof digitsValue === 'number'
+    ? String(digitsValue).trim()
+    : '';
+
+  return {
+    transcript: transcript ? transcript.trim() : '',
+    digits
+  };
+}
+
 async function executeAction({
   action,
   session,
@@ -43,15 +65,159 @@ async function executeAction({
   }
 
   if (action === 'request_next_turn') {
-    // call.speak.ended — TTS finished, ready for next utterance
-    // TODO: start streaming STT or gatherUsingSpeak when audio collection is wired
-    return { status: 'awaiting_input' };
+    if (!session?.callControlId || session.callControlId === 'unknown') {
+      return { status: 'skipped', reason: 'missing_call_control_id' };
+    }
+
+    if (!telnyxClient) {
+      return { status: 'skipped', reason: 'telnyx_client_not_available' };
+    }
+
+    try {
+      await telnyxClient.requestWithRetry(
+        `/calls/${session.callControlId}/actions/gather_using_speak`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            payload: 'Please tell me your property requirements after the beep.',
+            voice: 'female',
+            language: 'en-US',
+            input: ['speech', 'dtmf'],
+            maximum_digits: 8,
+            timeout_secs: 5,
+            inter_digit_timeout_secs: 2
+          })
+        }
+      );
+
+      return { status: 'awaiting_input', providerAction: 'gather_using_speak' };
+    } catch (err) {
+      logger.error({
+        message: 'Failed to request next turn gather',
+        action,
+        requestId,
+        reason: err.message
+      });
+      return { status: 'failed', reason: err.message };
+    }
   }
 
   if (action === 'process_gather_result') {
-    // call.gather.ended — DTMF/speech gather completed; route via conversation-engine
-    // TODO: extract digits/transcript from payload and route through conversation-engine
-    return { status: 'processing' };
+    if (!session?.callControlId || session.callControlId === 'unknown') {
+      return { status: 'skipped', reason: 'missing_call_control_id' };
+    }
+
+    if (!telnyxClient) {
+      return { status: 'skipped', reason: 'telnyx_client_not_available' };
+    }
+
+    const { transcript, digits } = extractGatherInput(payload);
+    if (!transcript && !digits) {
+      return { status: 'skipped', reason: 'missing_gather_input' };
+    }
+
+    let extractedEntities = {};
+    let intent = digits ? 'provide_phone' : 'collect_requirements';
+    let intentConfidence = digits ? 0.6 : 0.5;
+
+    if (transcript) {
+      extractedEntities = nlpClient
+        ? await nlpClient.extractEntities(transcript).catch(() => extractEntitiesFromTranscript(transcript))
+        : extractEntitiesFromTranscript(transcript);
+
+      if (nlpClient?.classifyIntent) {
+        const classified = await nlpClient.classifyIntent(transcript).catch(() => null);
+        if (classified?.intent) {
+          intent = classified.intent;
+          intentConfidence = typeof classified.confidence === 'number'
+            ? classified.confidence
+            : intentConfidence;
+        }
+      }
+    }
+
+    if (callSessionStore && session?.callControlId) {
+      callSessionStore.upsert(session.callControlId, (previous) => ({
+        ...previous,
+        latestTranscript: transcript || previous?.latestTranscript,
+        latestEntities: {
+          ...(previous?.latestEntities || {}),
+          ...extractedEntities,
+          ...(digits ? { phone: digits } : {})
+        },
+        updatedAt: new Date().toISOString()
+      }));
+    }
+
+    let responseText = transcript
+      ? `Thanks, I heard: ${transcript}.`
+      : `Thanks, I captured the digits ${digits}.`;
+    let conversation = {
+      status: 'skipped',
+      reason: 'conversation_engine_not_enabled'
+    };
+
+    if (conversationEngineEnabled && conversationClient && session?.sessionId) {
+      try {
+        const conversationResponse = await conversationClient.planReply({
+          sessionId: session.sessionId,
+          intent,
+          entities: extractedEntities
+        });
+
+        const plannedReply = conversationResponse?.data?.reply_text;
+        if (plannedReply) {
+          responseText = plannedReply;
+        }
+
+        conversation = {
+          status: 'ok',
+          step: conversationResponse?.data?.session?.step || 'unknown'
+        };
+      } catch (error) {
+        logger.error({
+          message: 'Failed to plan reply for gather result',
+          requestId,
+          reason: error.message
+        });
+        conversation = {
+          status: 'failed',
+          reason: error.message
+        };
+      }
+    }
+
+    const tts = ttsAdapter
+      ? await ttsAdapter.synthesizeText({ text: responseText })
+      : { status: 'skipped', reason: 'tts_adapter_not_available' };
+
+    await telnyxClient.requestWithRetry(
+      `/calls/${session.callControlId}/actions/speak`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          payload: responseText,
+          voice: 'female',
+          language: 'en-US'
+        })
+      }
+    );
+
+    return {
+      status: 'processed',
+      providerAction: 'speak',
+      gather: {
+        transcript,
+        digits
+      },
+      intent: {
+        name: intent,
+        confidence: intentConfidence
+      },
+      entities: extractedEntities,
+      tts,
+      conversation
+    };
   }
 
   if (action === 'start_voice_loop') {
@@ -150,7 +316,7 @@ async function executeAction({
         ? await ttsAdapter.synthesizeText({ text: responseText })
         : { status: 'skipped', reason: 'tts_adapter_not_available' };
 
-      // TODO: Stream synthesized audio bytes to Telnyx media endpoint when full audio path is enabled.
+      // Current MVP path uses Telnyx speak with plain text; synthesized audio is retained for future media streaming.
       await telnyxClient.requestWithRetry(
         `/calls/${session.callControlId}/actions/speak`,
         {

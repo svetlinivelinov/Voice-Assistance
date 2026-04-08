@@ -1,6 +1,127 @@
 const { executeAction } = require('../src/services/execute-action');
 
 describe('executeAction', () => {
+  test('requests gather_using_speak on request_next_turn', async () => {
+    const requestWithRetry = jest.fn().mockResolvedValue({ ok: true });
+
+    const result = await executeAction({
+      action: 'request_next_turn',
+      session: { callControlId: 'call-next-1' },
+      payload: {},
+      callSessionStore: null,
+      telnyxClient: { requestWithRetry },
+      asrAdapter: null,
+      ttsAdapter: null,
+      conversationClient: null,
+      crmClient: null,
+      nlpClient: null,
+      conversationEngineEnabled: false,
+      crmServiceEnabled: false,
+      asrMinConfidence: 0.6,
+      greetingMessage: 'hello',
+      logger: { error: jest.fn() },
+      requestId: 'r-next'
+    });
+
+    expect(requestWithRetry).toHaveBeenCalledWith(
+      '/calls/call-next-1/actions/gather_using_speak',
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(result).toEqual({ status: 'awaiting_input', providerAction: 'gather_using_speak' });
+  });
+
+  test('processes gather result and routes to conversation-engine', async () => {
+    const requestWithRetry = jest.fn().mockResolvedValue({ ok: true });
+    const synthesizeText = jest.fn().mockResolvedValue({ status: 'ok', mimeType: 'audio/mpeg' });
+    const planReply = jest.fn().mockResolvedValue({
+      data: {
+        reply_text: 'Thanks. What is your preferred viewing date?',
+        session: { step: 'collect_viewing_date' }
+      }
+    });
+    const storeUpsert = jest.fn().mockImplementation((_id, updater) => updater({ latestEntities: {} }));
+    const classifyIntent = jest.fn().mockResolvedValue({ intent: 'provide_location', confidence: 0.86 });
+    const extractEntities = jest.fn().mockResolvedValue({ location: 'Downtown', property_type: 'apartment' });
+
+    const result = await executeAction({
+      action: 'process_gather_result',
+      session: {
+        callControlId: 'call-gather-1',
+        sessionId: 'session-gather-1'
+      },
+      payload: {
+        data: {
+          payload: {
+            transcription_text: 'I am looking in downtown for an apartment'
+          }
+        }
+      },
+      callSessionStore: { upsert: storeUpsert },
+      telnyxClient: { requestWithRetry },
+      asrAdapter: null,
+      ttsAdapter: { synthesizeText },
+      conversationClient: { planReply },
+      crmClient: null,
+      nlpClient: { classifyIntent, extractEntities },
+      conversationEngineEnabled: true,
+      crmServiceEnabled: false,
+      asrMinConfidence: 0.6,
+      greetingMessage: 'hello',
+      logger: { error: jest.fn() },
+      requestId: 'r-gather'
+    });
+
+    expect(classifyIntent).toHaveBeenCalledWith('I am looking in downtown for an apartment');
+    expect(extractEntities).toHaveBeenCalledWith('I am looking in downtown for an apartment');
+    expect(planReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-gather-1',
+        intent: 'provide_location',
+        entities: expect.objectContaining({ location: 'Downtown' })
+      })
+    );
+    expect(requestWithRetry).toHaveBeenCalledWith(
+      '/calls/call-gather-1/actions/speak',
+      expect.objectContaining({ method: 'POST' })
+    );
+    const telnyxCallBody = JSON.parse(requestWithRetry.mock.calls[0][1].body);
+    expect(telnyxCallBody.payload).toBe('Thanks. What is your preferred viewing date?');
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'processed',
+        providerAction: 'speak',
+        intent: expect.objectContaining({ name: 'provide_location' }),
+        conversation: expect.objectContaining({ status: 'ok', step: 'collect_viewing_date' })
+      })
+    );
+  });
+
+  test('skips process_gather_result when transcript and digits are missing', async () => {
+    const requestWithRetry = jest.fn().mockResolvedValue({ ok: true });
+
+    const result = await executeAction({
+      action: 'process_gather_result',
+      session: { callControlId: 'call-gather-2', sessionId: 'session-gather-2' },
+      payload: { data: { payload: {} } },
+      callSessionStore: null,
+      telnyxClient: { requestWithRetry },
+      asrAdapter: null,
+      ttsAdapter: null,
+      conversationClient: null,
+      crmClient: null,
+      nlpClient: null,
+      conversationEngineEnabled: false,
+      crmServiceEnabled: false,
+      asrMinConfidence: 0.6,
+      greetingMessage: 'hello',
+      logger: { error: jest.fn() },
+      requestId: 'r-gather-missing'
+    });
+
+    expect(requestWithRetry).not.toHaveBeenCalled();
+    expect(result).toEqual({ status: 'skipped', reason: 'missing_gather_input' });
+  });
+
   test('answers inbound call with Telnyx actions/answer on answer_inbound_call', async () => {
     const requestWithRetry = jest.fn().mockResolvedValue({ ok: true });
 
