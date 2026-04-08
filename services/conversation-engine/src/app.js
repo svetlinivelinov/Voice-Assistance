@@ -6,12 +6,14 @@ const requestContext = require('./middleware/request-context');
 const errorHandler = require('./middleware/error-handler');
 const healthRoutes = require('./routes/health');
 const placeholderRoutes = require('./routes/session');
+const { createSessionStore } = require('./services/session-store');
 
 function createApp(configOverride) {
   const app = express();
   const config = configOverride || getConfig();
 
   app.locals.config = config;
+  app.locals.sessionStore = createSessionStore();
 
   app.use(express.json());
   app.use(requestContext);
