@@ -91,6 +91,8 @@ describe('telephony-service call.answered integration flow', () => {
     expect(response.body?.data?.sessionId).toEqual(expect.any(String));
     expect(response.body?.data?.session?.conversationId).toBe(response.body?.data?.conversationId);
     expect(response.body?.data?.session?.sessionId).toBe(response.body?.data?.sessionId);
+    expect(response.body?.data?.session?.state).toBe('in_progress');
+    expect(response.body?.data?.session?.lastEventType).toBe('call.answered');
     expect(response.body?.data?.execution).toEqual(
       expect.objectContaining({
         status: 'invoked',

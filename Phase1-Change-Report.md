@@ -82,6 +82,20 @@ Create a full mocked integration gate for `call.answered` end-to-end flow (Telny
 - No lint issues.
 - `npm test` remains green with current temporary coverage thresholds.
 
+## Status Update (2026-04-08)
+
+### Completed
+- Added explicit end-to-end assertions in `voice-loop.integration.test.js` for:
+  - session state transition to `in_progress`
+  - event tracking as `call.answered`
+  - ASR/TTS + Telnyx speak execution payload validation
+- Validation results:
+  - `npm run lint` passed
+  - `npm test` passed (16 suites, 36 tests)
+
+### Immediate Next Step
+- Start Phase 2 on a new branch focused on conversation-engine state machine and slot-filling flow.
+
 ## Follow-up Plan (after next change)
 - Increase Jest coverage thresholds incrementally back toward target:
   1. branches: 50 -> 60 -> 70
