@@ -3,9 +3,9 @@ const {
   error: errorResponse,
   ok,
   ERROR_CODES,
-  Joi
+  Joi,
+  sessionSchema
 } = require('@voice-assistant/shared');
-const { sessionSchema } = require('@voice-assistant/shared');
 const { buildNextSessionState } = require('../services/state-machine');
 
 const router = express.Router();
@@ -50,17 +50,12 @@ router.post('/session', (req, res) => {
     );
   }
 
-  let replyText = '';
-
-  const nextSession = req.app.locals.sessionStore.upsert(value.session_id, (previousSession) => {
-    const result = buildNextSessionState({
-      previousSession,
-      incomingSession: value
-    });
-
-    replyText = result.replyText;
-    return result.session;
+  const previousSession = req.app.locals.sessionStore.get(value.session_id);
+  const { session: nextSession, replyText } = buildNextSessionState({
+    previousSession,
+    incomingSession: value
   });
+  req.app.locals.sessionStore.upsert(value.session_id, () => nextSession);
 
   const { error: contractError } = sessionSchema.validate(nextSession);
 

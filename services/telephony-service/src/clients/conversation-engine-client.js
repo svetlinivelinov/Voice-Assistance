@@ -29,7 +29,7 @@ function createConversationEngineClient(config, logger) {
 
           if (!response.ok) {
             const err = new Error(`Conversation engine request failed with status ${response.status}`);
-            err.status = response.status;
+            err.statusCode = response.status;
             throw err;
           }
 
@@ -40,9 +40,7 @@ function createConversationEngineClient(config, logger) {
       },
       {
         retries: config.maxRetries,
-        shouldRetry: (error) => {
-          return error.name === 'AbortError' || error.status >= 500;
-        },
+        shouldRetry: (error) => !error.statusCode || error.statusCode >= 500,
         onRetry: ({ attempt, delay, error }) => {
           logger.error({
             message: 'Retrying conversation-engine request',

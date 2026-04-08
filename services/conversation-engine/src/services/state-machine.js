@@ -61,7 +61,8 @@ function resolveReplyText({ missingFields, hasNewEntityData, intent }) {
   }
 
   if (!hasNewEntityData && (intent === 'fallback' || intent === 'unknown')) {
-    return `I did not catch that. Could you repeat your ${missingFields[0]}?`;
+    const fieldLabel = missingFields[0].replace(/_/g, ' ');
+    return `I did not catch that. Could you repeat your ${fieldLabel}?`;
   }
 
   return FIELD_PROMPTS[missingFields[0]];
@@ -99,6 +100,5 @@ function buildNextSessionState({ previousSession, incomingSession }) {
 
 module.exports = {
   buildNextSessionState,
-  resolveReplyText,
   REQUIRED_FIELDS
 };
