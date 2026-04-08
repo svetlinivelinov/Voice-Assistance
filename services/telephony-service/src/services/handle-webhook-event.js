@@ -3,9 +3,13 @@ const { randomUUID } = require('crypto');
 function resolveAction(eventType) {
   switch (eventType) {
     case 'call.initiated':
-      return 'queue_inbound_call';
+      return 'answer_inbound_call';
     case 'call.answered':
       return 'start_voice_loop';
+    case 'call.speak.ended':
+      return 'request_next_turn';
+    case 'call.gather.ended':
+      return 'process_gather_result';
     case 'call.hangup':
     case 'call.ended':
       return 'close_call_session';
@@ -20,6 +24,9 @@ function resolveState(eventType, previousState = 'new') {
       return 'ringing';
     case 'call.answered':
       return 'in_progress';
+    case 'call.speak.ended':
+    case 'call.gather.ended':
+      return previousState; // remain in current state
     case 'call.hangup':
     case 'call.ended':
       return 'ended';
@@ -40,8 +47,20 @@ function getCallControlId(payload) {
 
 function handleWebhookEvent({ payload, store }) {
   const eventType = payload?.data?.event_type || payload?.data?.record_type || 'unknown';
-  const action = resolveAction(eventType);
+  const eventId = payload?.data?.id;
   const callControlId = getCallControlId(payload);
+
+  // Idempotency — skip already-processed events to prevent double-firing
+  if (eventId && store.hasProcessed && store.hasProcessed(eventId)) {
+    const existingSession = store.get(callControlId) || { callControlId, sessionId: 'unknown', conversationId: 'unknown', state: 'unknown' };
+    return {
+      eventType,
+      action: 'ignore_duplicate_event',
+      session: existingSession
+    };
+  }
+
+  const action = resolveAction(eventType);
 
   const session = store.upsert(callControlId, (previous) => {
     const now = new Date().toISOString();
@@ -59,6 +78,10 @@ function handleWebhookEvent({ payload, store }) {
       eventsCount: (previous?.eventsCount || 0) + 1
     };
   });
+
+  if (eventId && store.markProcessed) {
+    store.markProcessed(eventId);
+  }
 
   return {
     eventType,

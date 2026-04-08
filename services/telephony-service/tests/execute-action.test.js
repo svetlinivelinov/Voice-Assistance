@@ -1,13 +1,15 @@
 const { executeAction } = require('../src/services/execute-action');
 
 describe('executeAction', () => {
-  test('returns queued for queue_inbound_call', async () => {
+  test('answers inbound call with Telnyx actions/answer on answer_inbound_call', async () => {
+    const requestWithRetry = jest.fn().mockResolvedValue({ ok: true });
+
     const result = await executeAction({
-      action: 'queue_inbound_call',
-      session: { callControlId: 'call-1' },
+      action: 'answer_inbound_call',
+      session: { callControlId: 'call-answer-1' },
       payload: {},
       callSessionStore: null,
-      telnyxClient: null,
+      telnyxClient: { requestWithRetry },
       asrAdapter: null,
       ttsAdapter: null,
       conversationClient: null,
@@ -17,10 +19,36 @@ describe('executeAction', () => {
       asrMinConfidence: 0.6,
       greetingMessage: 'hello',
       logger: { error: jest.fn() },
-      requestId: 'r1'
+      requestId: 'r-answer'
     });
 
-    expect(result).toEqual({ status: 'queued' });
+    expect(requestWithRetry).toHaveBeenCalledWith(
+      '/calls/call-answer-1/actions/answer',
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(result).toEqual({ status: 'answered' });
+  });
+
+  test('skips answer when callControlId is unknown', async () => {
+    const result = await executeAction({
+      action: 'answer_inbound_call',
+      session: { callControlId: 'unknown' },
+      payload: {},
+      callSessionStore: null,
+      telnyxClient: { requestWithRetry: jest.fn() },
+      asrAdapter: null,
+      ttsAdapter: null,
+      conversationClient: null,
+      crmClient: null,
+      conversationEngineEnabled: false,
+      crmServiceEnabled: false,
+      asrMinConfidence: 0.6,
+      greetingMessage: 'hello',
+      logger: { error: jest.fn() },
+      requestId: 'r-skip'
+    });
+
+    expect(result).toEqual({ status: 'skipped', reason: 'missing_call_control_id' });
   });
 
   test('skips voice loop when callControlId is missing', async () => {

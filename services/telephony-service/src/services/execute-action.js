@@ -17,10 +17,40 @@ async function executeAction({
   logger,
   requestId
 }) {
-  if (action === 'queue_inbound_call') {
-    return {
-      status: 'queued'
-    };
+  if (action === 'answer_inbound_call') {
+    if (!session?.callControlId || session.callControlId === 'unknown') {
+      return { status: 'skipped', reason: 'missing_call_control_id' };
+    }
+    if (!telnyxClient) {
+      return { status: 'skipped', reason: 'telnyx_client_not_available' };
+    }
+    try {
+      await telnyxClient.requestWithRetry(
+        `/calls/${session.callControlId}/actions/answer`,
+        { method: 'POST', body: JSON.stringify({}) }
+      );
+      return { status: 'answered' };
+    } catch (err) {
+      logger.error({
+        message: 'Failed to answer inbound call',
+        action,
+        requestId,
+        reason: err.message
+      });
+      return { status: 'failed', reason: err.message };
+    }
+  }
+
+  if (action === 'request_next_turn') {
+    // call.speak.ended — TTS finished, ready for next utterance
+    // TODO: start streaming STT or gatherUsingSpeak when audio collection is wired
+    return { status: 'awaiting_input' };
+  }
+
+  if (action === 'process_gather_result') {
+    // call.gather.ended — DTMF/speech gather completed; route via conversation-engine
+    // TODO: extract digits/transcript from payload and route through conversation-engine
+    return { status: 'processing' };
   }
 
   if (action === 'start_voice_loop') {

@@ -85,6 +85,9 @@ describe('telephony-service call.answered integration flow', () => {
       .set('telnyx-signature-ed25519', signed.signature)
       .send(payload);
 
+    // Allow the setImmediate async processing block to complete
+    await new Promise((resolve) => setImmediate(resolve));
+
     expect(response.status).toBe(200);
     expect(response.body?.data?.action).toBe('start_voice_loop');
     expect(response.body?.data?.conversationId).toEqual(expect.any(String));
@@ -93,25 +96,7 @@ describe('telephony-service call.answered integration flow', () => {
     expect(response.body?.data?.session?.sessionId).toBe(response.body?.data?.sessionId);
     expect(response.body?.data?.session?.state).toBe('in_progress');
     expect(response.body?.data?.session?.lastEventType).toBe('call.answered');
-    expect(response.body?.data?.execution).toEqual(
-      expect.objectContaining({
-        status: 'invoked',
-        providerAction: 'speak',
-        asr: expect.objectContaining({
-          status: 'ok',
-          transcript: 'I need a two-bedroom apartment'
-        }),
-        tts: expect.objectContaining({
-          status: 'ok',
-          mimeType: 'audio/mpeg'
-        }),
-        metrics: expect.objectContaining({
-          voiceTurnLatencyMs: expect.any(Number)
-        })
-      })
-    );
-    expect(response.body?.data?.execution?.metrics?.voiceTurnLatencyMs).toBeGreaterThanOrEqual(0);
-
+    // execution is processed async — assert via fetch mock calls instead
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0][0]).toBe('https://api.openai.com/v1/audio/transcriptions');
     expect(fetchMock.mock.calls[1][0]).toBe('https://api.elevenlabs.io/v1/text-to-speech/voice-test-1');
@@ -195,11 +180,11 @@ describe('telephony-service call.answered integration flow', () => {
       .set('telnyx-signature-ed25519', signed.signature)
       .send(payload);
 
+    // Allow the setImmediate async processing block to complete
+    await new Promise((resolve) => setImmediate(resolve));
+
     expect(response.status).toBe(200);
-    expect(response.body?.data?.execution?.status).toBe('invoked');
-    expect(response.body?.data?.execution?.conversation).toEqual(
-      expect.objectContaining({ status: 'ok', step: 'collect_location' })
-    );
+    expect(response.body?.data?.execution?.status).toBeUndefined(); // execution is async now
 
     // CE call must include entities extracted from transcript
     expect(fetchMock).toHaveBeenCalledTimes(4);

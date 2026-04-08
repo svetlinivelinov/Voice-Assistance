@@ -1,5 +1,6 @@
 function createCallSessionStore() {
   const sessions = new Map();
+  const processedEventIds = new Set();
 
   function get(callControlId) {
     return sessions.get(callControlId) || null;
@@ -12,9 +13,19 @@ function createCallSessionStore() {
     return next;
   }
 
+  function hasProcessed(eventId) {
+    return processedEventIds.has(eventId);
+  }
+
+  function markProcessed(eventId) {
+    processedEventIds.add(eventId);
+  }
+
   return {
     get,
-    upsert
+    upsert,
+    hasProcessed,
+    markProcessed
   };
 }
 

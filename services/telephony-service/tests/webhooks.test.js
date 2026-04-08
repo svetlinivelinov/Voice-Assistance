@@ -85,10 +85,7 @@ describe('telephony-service webhook signature verification', () => {
           received: true,
           provider: 'telnyx',
           eventType: 'call.initiated',
-          action: 'queue_inbound_call',
-          execution: expect.objectContaining({
-            status: 'queued'
-          }),
+          action: 'answer_inbound_call',
           session: expect.objectContaining({
             callControlId: 'unknown',
             state: 'ringing',
@@ -127,8 +124,8 @@ describe('telephony-service webhook signature verification', () => {
 
     expect(response.status).toBe(200);
     expect(response.body?.data?.action).toBe('start_voice_loop');
-    expect(response.body?.data?.execution?.status).toBe('skipped');
-    expect(response.body?.data?.execution?.reason).toBe('missing_call_control_id');
+    // execution is now async — not included in the HTTP response body
+    expect(response.body?.data?.execution).toBeUndefined();
   });
 
   test('POST /api/webhooks maps unknown events to ignore_unknown_event', async () => {

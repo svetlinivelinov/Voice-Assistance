@@ -14,7 +14,8 @@ router.post('/webhooks', verifyTelnyxSignature, async (req, res) => {
     store: req.app.locals.callSessionStore
   });
 
-  const execution = await executeAction({
+  // Capture everything needed before responding — avoids holding a reference to req/res
+  const executeContext = {
     action: result.action,
     session: result.session,
     payload: req.body,
@@ -30,23 +31,17 @@ router.post('/webhooks', verifyTelnyxSignature, async (req, res) => {
     greetingMessage: req.app.locals.config.voiceLoopGreeting,
     logger,
     requestId: req.requestId
-  });
-
-  logger.info({
-    message: 'Telnyx webhook received',
+  };
+  const logContext = {
     service: req.app.locals.config.serviceName,
     requestId: req.requestId,
     conversationId: result.session.conversationId,
     sessionId: result.session.sessionId,
-    provider: 'telnyx',
-    eventType: result.eventType,
-    action: result.action,
-    session: result.session,
-    execution,
-    payload: maskPII(req.body)
-  });
+    maskedPayload: maskPII(req.body)
+  };
 
-  return ok(res, {
+  // Respond immediately — Telnyx drops webhooks that don't get 200 within 10 seconds
+  ok(res, {
     received: true,
     provider: 'telnyx',
     conversationId: result.session.conversationId,
@@ -54,9 +49,30 @@ router.post('/webhooks', verifyTelnyxSignature, async (req, res) => {
     eventType: result.eventType,
     action: result.action,
     session: result.session,
-    execution,
-    service: req.app.locals.config.serviceName,
-    requestId: req.requestId
+    service: logContext.service,
+    requestId: logContext.requestId
+  });
+
+  // Execute heavy processing (ASR / TTS / Telnyx actions) async after response is sent
+  setImmediate(async () => {
+    try {
+      const execution = await executeAction(executeContext);
+      logger.info({
+        message: 'Telnyx webhook processed',
+        ...logContext,
+        provider: 'telnyx',
+        eventType: result.eventType,
+        action: result.action,
+        execution,
+        payload: logContext.maskedPayload
+      });
+    } catch (err) {
+      logger.error({
+        message: 'Failed to process Telnyx webhook async',
+        ...logContext,
+        reason: err.message
+      });
+    }
   });
 });
 
