@@ -1,6 +1,11 @@
 const express = require('express');
 const { error: errorResponse, ok, ERROR_CODES, Joi } = require('@voice-assistant/shared');
-const { findAvailableSlots, hasConflict, rankAlternativeSlots } = require('../services/availability');
+const {
+  findAvailableSlots,
+  hasConflict,
+  rankAlternativeSlots,
+  rankAlternativeSlotsWithReasons
+} = require('../services/availability');
 
 const router = express.Router();
 
@@ -127,7 +132,10 @@ router.post('/bookings', async (req, res) => {
         from: new Date(value.start_datetime)
       });
       const alternativeSlots = config.calendarAlternativeRankingEnabled
-        ? rankAlternativeSlots(generatedAlternatives, value.start_datetime)
+        ? rankAlternativeSlotsWithReasons(
+            rankAlternativeSlots(generatedAlternatives, value.start_datetime),
+            value.start_datetime
+          )
         : generatedAlternatives;
 
       return errorResponse(

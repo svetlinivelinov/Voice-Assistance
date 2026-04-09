@@ -65,7 +65,14 @@ function resolveIntent(providedIntent, missingFields) {
   return missingFields.length ? 'collect_requirements' : 'schedule_viewing';
 }
 
-function resolveReplyText({ missingFields, hasNewEntityData, intent, recoveryPromptsEnabled = false }) {
+function resolveReplyText({
+  missingFields,
+  hasNewEntityData,
+  intent,
+  recoveryPromptsEnabled = false,
+  recoveryAttempt = 0,
+  recoveryMaxAttempts = 2
+}) {
   if (!missingFields.length) {
     return 'Great, I have all required details. I can proceed to scheduling options.';
   }
@@ -73,6 +80,9 @@ function resolveReplyText({ missingFields, hasNewEntityData, intent, recoveryPro
   if (!hasNewEntityData && (intent === 'fallback' || intent === 'unknown')) {
     const fieldLabel = missingFields[0].replace(/_/g, ' ');
     if (recoveryPromptsEnabled) {
+      if (recoveryAttempt >= recoveryMaxAttempts) {
+        return `I am still not getting that clearly. I can switch to a callback flow. Please share your ${fieldLabel} and we will follow up shortly.`;
+      }
       const example = RECOVERY_EXAMPLES[missingFields[0]] || '';
       return `I did not catch that clearly. Please share your ${fieldLabel} in a short sentence. ${example}`.trim();
     }
@@ -84,14 +94,26 @@ function resolveReplyText({ missingFields, hasNewEntityData, intent, recoveryPro
 
 function buildNextSessionState({ previousSession, incomingSession, options = {} }) {
   const normalizedIncomingEntities = normalizeEntities(incomingSession.entities);
+  const previousEntities = previousSession?.entities || {};
+  const hasNewEntityData = hasEntityUpdates(previousEntities, normalizedIncomingEntities);
+  const isFallbackTurnWithoutNewData = !hasNewEntityData && (incomingSession.intent === 'fallback' || incomingSession.intent === 'unknown');
+
+  const previousRecoveryAttempts = Number(previousEntities.__recovery_attempts || 0);
+  const recoveryPromptsEnabled = Boolean(options.recoveryPromptsEnabled);
+  const recoveryMaxAttempts = Number(options.recoveryMaxAttempts || 2);
+
+  const nextRecoveryAttempts = recoveryPromptsEnabled
+    ? (hasNewEntityData ? 0 : (isFallbackTurnWithoutNewData ? previousRecoveryAttempts + 1 : previousRecoveryAttempts))
+    : previousRecoveryAttempts;
+
   const mergedEntities = {
-    ...(previousSession?.entities || {}),
-    ...normalizedIncomingEntities
+    ...previousEntities,
+    ...normalizedIncomingEntities,
+    ...(recoveryPromptsEnabled ? { __recovery_attempts: nextRecoveryAttempts } : {})
   };
 
   const missingFields = resolveMissingFields(mergedEntities);
   const timestamp = new Date().toISOString();
-  const hasNewEntityData = hasEntityUpdates(previousSession?.entities || {}, normalizedIncomingEntities);
 
   const nextSession = {
     session_id: incomingSession.session_id,
@@ -108,7 +130,9 @@ function buildNextSessionState({ previousSession, incomingSession, options = {} 
       missingFields,
       hasNewEntityData,
       intent: incomingSession.intent,
-      recoveryPromptsEnabled: options.recoveryPromptsEnabled
+      recoveryPromptsEnabled,
+      recoveryAttempt: nextRecoveryAttempts,
+      recoveryMaxAttempts
     })
   };
 }

@@ -399,3 +399,41 @@ Completed from the P2 kickoff checklist with feature flags (default-off):
   - Branches: 66.66%
   - Functions: 69.68%
   - Lines: 79.41%
+
+---
+
+## P2 Deepening Status (Completed on April 9, 2026)
+
+Additional hardening and UX improvements completed beyond the initial P2 kickoff:
+
+1. Explainable ranked alternatives in calendar conflict responses
+   - When `CALENDAR_ALTERNATIVE_RANKING_ENABLED=true`, each alternative slot now includes ranking metadata:
+     - `rank`
+     - `distance_minutes`
+     - `rationale`
+2. Recovery escalation policy in conversation-engine
+   - When `CONVERSATION_RECOVERY_PROMPTS_ENABLED=true`, unclear turns increment recovery attempts.
+   - After `CONVERSATION_RECOVERY_MAX_ATTEMPTS`, prompt escalates to callback-oriented guidance.
+3. Regression tests added for both behaviors (unit + route/API level).
+
+### Files Updated for P2 Deepening
+
+- `services/calendar-service/src/services/availability.js`
+- `services/calendar-service/src/routes/bookings.js`
+- `services/calendar-service/tests/availability.test.js`
+- `services/calendar-service/tests/bookings.test.js`
+- `services/conversation-engine/src/config.js`
+- `services/conversation-engine/src/services/state-machine.js`
+- `services/conversation-engine/src/routes/session.js`
+- `services/conversation-engine/tests/state-machine.test.js`
+- `services/conversation-engine/tests/session.test.js`
+
+### Validation After P2 Deepening
+
+- Lint: pass (`npm run lint`)
+- Tests: 29/29 suites pass, 216/216 tests pass (`npm test`)
+- Coverage:
+  - Statements: 79.19%
+  - Branches: 67.42%
+  - Functions: 69.95%
+  - Lines: 79.57%

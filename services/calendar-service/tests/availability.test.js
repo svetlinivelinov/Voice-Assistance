@@ -3,6 +3,7 @@ const {
   generateCandidateSlots,
   findAvailableSlots,
   rankAlternativeSlots,
+  rankAlternativeSlotsWithReasons,
   SLOT_DURATION_MS
 } = require('../src/services/availability');
 
@@ -152,5 +153,28 @@ describe('rankAlternativeSlots', () => {
       '2026-04-21T12:00:00.000Z',
       '2026-04-21T14:00:00.000Z'
     ]);
+  });
+});
+
+describe('rankAlternativeSlotsWithReasons', () => {
+  test('adds ranking metadata and rationale', () => {
+    const preferred = '2026-04-21T10:00:00.000Z';
+    const slots = [
+      {
+        startDateTime: '2026-04-21T11:00:00.000Z',
+        endDateTime: '2026-04-21T12:00:00.000Z',
+        timeZone: 'UTC'
+      }
+    ];
+
+    const ranked = rankAlternativeSlotsWithReasons(slots, preferred);
+
+    expect(ranked[0].ranking).toEqual(
+      expect.objectContaining({
+        rank: 1,
+        distance_minutes: 60,
+        rationale: 'Closest available slot to requested time'
+      })
+    );
   });
 });

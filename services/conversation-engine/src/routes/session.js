@@ -60,7 +60,8 @@ router.post('/session', (req, res) => {
     previousSession,
     incomingSession: value,
     options: {
-      recoveryPromptsEnabled: req.app.locals.config.conversationRecoveryPromptsEnabled
+      recoveryPromptsEnabled: req.app.locals.config.conversationRecoveryPromptsEnabled,
+      recoveryMaxAttempts: req.app.locals.config.conversationRecoveryMaxAttempts
     }
   });
   req.app.locals.sessionStore.upsert(value.session_id, () => nextSession);

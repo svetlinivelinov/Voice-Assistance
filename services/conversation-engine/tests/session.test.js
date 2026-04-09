@@ -183,6 +183,44 @@ describe('conversation-engine session routes', () => {
     );
   });
 
+  test('POST /api/session escalates recovery prompt after repeated unclear turns', async () => {
+    const app = createApp({
+      ...baseConfig,
+      conversationRecoveryPromptsEnabled: true,
+      conversationRecoveryMaxAttempts: 2
+    });
+
+    await request(app)
+      .post('/api/session')
+      .send({
+        session_id: 'session-fallback-escalate',
+        entities: {
+          name: 'Escalation User'
+        }
+      });
+
+    await request(app)
+      .post('/api/session')
+      .send({
+        session_id: 'session-fallback-escalate',
+        intent: 'unknown',
+        entities: {}
+      });
+
+    const secondFallbackResponse = await request(app)
+      .post('/api/session')
+      .send({
+        session_id: 'session-fallback-escalate',
+        intent: 'unknown',
+        entities: {}
+      });
+
+    expect(secondFallbackResponse.status).toBe(200);
+    expect(secondFallbackResponse.body?.data?.reply_text).toBe(
+      'I am still not getting that clearly. I can switch to a callback flow. Please share your phone and we will follow up shortly.'
+    );
+  });
+
   test('POST /api/session/:sessionId/feedback stores thumbs up/down feedback', async () => {
     const app = createApp(baseConfig);
 

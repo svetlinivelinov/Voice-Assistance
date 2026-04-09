@@ -119,6 +119,20 @@ describe('resolveReplyText', () => {
     );
   });
 
+  test('escalates to callback-oriented recovery prompt after max attempts', () => {
+    const text = resolveReplyText({
+      missingFields: ['phone'],
+      hasNewEntityData: false,
+      intent: 'unknown',
+      recoveryPromptsEnabled: true,
+      recoveryAttempt: 2,
+      recoveryMaxAttempts: 2
+    });
+    expect(text).toBe(
+      'I am still not getting that clearly. I can switch to a callback flow. Please share your phone and we will follow up shortly.'
+    );
+  });
+
   test('returns FIELD_PROMPT for normal slot-fill turn', () => {
     expect(resolveReplyText({ missingFields: ['budget'], hasNewEntityData: true, intent: 'collect_requirements' }))
       .toBe('What is your budget range for the property?');
@@ -201,6 +215,26 @@ describe('buildNextSessionState', () => {
 
     expect(replyText).toBe(
       'I did not catch that clearly. Please share your phone in a short sentence. For example: My phone number is +1 555 123 4567.'
+    );
+  });
+
+  test('increments recovery attempts and escalates after threshold', () => {
+    const prev = {
+      session_id: 'sess-esc',
+      entities: { name: 'Jane', __recovery_attempts: 1 },
+      missing_fields: ['phone'],
+      timestamp: new Date().toISOString()
+    };
+
+    const { session, replyText } = buildNextSessionState({
+      previousSession: prev,
+      incomingSession: { session_id: 'sess-esc', intent: 'unknown', entities: {} },
+      options: { recoveryPromptsEnabled: true, recoveryMaxAttempts: 2 }
+    });
+
+    expect(session.entities.__recovery_attempts).toBe(2);
+    expect(replyText).toBe(
+      'I am still not getting that clearly. I can switch to a callback flow. Please share your phone and we will follow up shortly.'
     );
   });
 

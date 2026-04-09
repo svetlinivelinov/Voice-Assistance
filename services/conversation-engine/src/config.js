@@ -5,7 +5,8 @@ const envSchema = Joi.object({
   SERVICE_NAME: Joi.string().default('conversation-engine'),
   PORT: Joi.number().integer().min(1).max(65535).default(3002),
   CONVERSATION_STATE_MACHINE_ENABLED: Joi.boolean().default(true),
-  CONVERSATION_RECOVERY_PROMPTS_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(false)
+  CONVERSATION_RECOVERY_PROMPTS_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(false),
+  CONVERSATION_RECOVERY_MAX_ATTEMPTS: Joi.number().integer().min(1).max(10).default(2)
 });
 
 function getConfig(env = process.env) {
@@ -16,7 +17,8 @@ function getConfig(env = process.env) {
     serviceName: validated.SERVICE_NAME,
     port: Number(validated.PORT),
     conversationStateMachineEnabled: Boolean(validated.CONVERSATION_STATE_MACHINE_ENABLED),
-    conversationRecoveryPromptsEnabled: Boolean(validated.CONVERSATION_RECOVERY_PROMPTS_ENABLED)
+    conversationRecoveryPromptsEnabled: Boolean(validated.CONVERSATION_RECOVERY_PROMPTS_ENABLED),
+    conversationRecoveryMaxAttempts: Number(validated.CONVERSATION_RECOVERY_MAX_ATTEMPTS)
   };
 }
 

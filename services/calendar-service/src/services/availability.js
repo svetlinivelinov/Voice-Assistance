@@ -115,11 +115,38 @@ function rankAlternativeSlots(slots, preferredStartDateTime) {
     .map((entry) => entry.slot);
 }
 
+/**
+ * Build ranked alternatives with rationale metadata for user-facing explanations.
+ * @param {Array<{startDateTime: string, endDateTime: string, timeZone: string}>} slots
+ * @param {string} preferredStartDateTime
+ * @returns {Array}
+ */
+function rankAlternativeSlotsWithReasons(slots, preferredStartDateTime) {
+  const ranked = rankAlternativeSlots(slots, preferredStartDateTime);
+  if (!preferredStartDateTime) {
+    return ranked;
+  }
+
+  const preferredStart = new Date(preferredStartDateTime).getTime();
+  return ranked.map((slot, idx) => {
+    const distanceMinutes = Math.round(Math.abs(new Date(slot.startDateTime).getTime() - preferredStart) / 60000);
+    return {
+      ...slot,
+      ranking: {
+        rank: idx + 1,
+        distance_minutes: distanceMinutes,
+        rationale: 'Closest available slot to requested time'
+      }
+    };
+  });
+}
+
 module.exports = {
   hasConflict,
   generateCandidateSlots,
   findAvailableSlots,
   rankAlternativeSlots,
+  rankAlternativeSlotsWithReasons,
   SLOT_DURATION_MS,
   WORKING_HOUR_START,
   WORKING_HOUR_END

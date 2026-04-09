@@ -1,14 +1,16 @@
 const request = require('supertest');
 const { createApp } = require('../src/app');
 
-function makeApp(calendarClientOverride) {
+function makeApp(calendarClientOverride, configOverride = {}) {
   const app = createApp({
     nodeEnv: 'test',
     serviceName: 'calendar-service',
     port: 3003,
     googleCalendarEnabled: false, // drive via calendarClient override
     googleCalendarId: 'test-calendar@group.calendar.google.com',
-    calendarTimeZone: 'UTC'
+    calendarTimeZone: 'UTC',
+    calendarAlternativeRankingEnabled: false,
+    ...configOverride
   });
 
   // Inject mock client directly after creation
@@ -120,6 +122,39 @@ describe('POST /api/bookings', () => {
     expect(Array.isArray(response.body?.error?.details?.alternative_slots)).toBe(true);
     expect(response.body.error.details.alternative_slots.length).toBeGreaterThan(0);
     expect(response.body.error.details.alternative_slots.length).toBeLessThanOrEqual(3);
+  });
+
+  test('returns explainable ranking metadata for alternatives when ranking feature flag is enabled', async () => {
+    const listEvents = jest.fn().mockResolvedValue([
+      {
+        start: { dateTime: FUTURE_START.toISOString() },
+        end: { dateTime: FUTURE_END.toISOString() }
+      }
+    ]);
+    const app = makeApp(
+      { listEvents, createEvent: jest.fn() },
+      { calendarAlternativeRankingEnabled: true }
+    );
+
+    const response = await request(app)
+      .post('/api/bookings')
+      .send({
+        session_id: 'sess-conflict-ranked',
+        start_datetime: FUTURE_START.toISOString(),
+        end_datetime: FUTURE_END.toISOString(),
+        time_zone: 'UTC'
+      });
+
+    expect(response.status).toBe(409);
+    const alternatives = response.body?.error?.details?.alternative_slots || [];
+    expect(alternatives.length).toBeGreaterThan(0);
+    expect(alternatives[0].ranking).toEqual(
+      expect.objectContaining({
+        rank: 1,
+        distance_minutes: expect.any(Number),
+        rationale: 'Closest available slot to requested time'
+      })
+    );
   });
 
   test('creates booking and returns event details linked to session', async () => {
