@@ -288,6 +288,41 @@ Decision for this MVP:
 2. Keep the provider adapter abstraction so Twilio or others can be re-enabled later if needed.
 3. Re-run this matrix after a 1-week pilot with real call logs and failure metrics.
 
+## 7.3 Real Telnyx Call Readiness Gate
+Before running a real inbound call through Telnyx, all items below must be true:
+
+1. Telnyx credentials and webhook verification are configured.
+- `TELNYX_API_KEY` is set and valid for call-control actions.
+- `TELNYX_PUBLIC_KEY` is set and matches the signing key in Telnyx Mission Control.
+
+2. Public HTTPS webhook reachability is live.
+- Telephony webhook endpoint is publicly reachable over HTTPS (`POST /api/webhooks`).
+- No localhost-only URL is configured in Telnyx for production call events.
+- TLS certificate is valid and trusted (no self-signed cert in production path).
+
+3. Telnyx Call Control application is correctly mapped.
+- The correct Telnyx app/connection points to this webhook URL.
+- Number routing is attached to the app that emits events to this endpoint.
+
+4. Runtime feature flags are set for live call behavior.
+- `ASR_ENABLED=true`
+- `TTS_ENABLED=true`
+- `CONVERSATION_ENGINE_ENABLED=true` (if slot filling is desired during live call)
+- `NLP_SERVICE_ENABLED=true` and `CRM_SERVICE_ENABLED=true` (if full pipeline is desired)
+
+5. Smoke checks pass in deployed environment.
+- `/health` and `/ready` return 200.
+- One signed webhook test returns 200 and logs a valid request ID.
+- Telnyx answer and speak actions succeed with real credentials.
+
+Go/No-Go rule for first live call:
+- Go only if public webhook reachability, signature verification, and Telnyx answer action are all confirmed in the target environment.
+- Otherwise, remain in mock/integration mode and fix the failing gate.
+
+Operational quick start:
+- Runbook: `Telnyx-GoLive-Runbook.md`
+- Smoke check script: `scripts/telnyx-readiness.ps1`
+
 ## 8. Immediate Next 10 Tasks
 1. Create service folder skeleton and shared contracts package.
 2. Add env validation and `.env.example` per service.

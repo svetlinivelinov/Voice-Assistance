@@ -29,6 +29,9 @@ const envSchema = Joi.object({
   CRM_RECOVERY_QUEUE_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(true),
   CRM_RECOVERY_QUEUE_PERSIST_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(false),
   CRM_RECOVERY_QUEUE_FILE_PATH: Joi.string().default('./data/telephony-pending-leads.json'),
+  CRM_RECOVERY_QUEUE_TTL_HOURS: Joi.number().integer().min(1).max(24 * 365).default(168),
+  CRM_RECOVERY_METRICS_LOG_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(false),
+  CRM_RECOVERY_METRICS_LOG_INTERVAL_MS: Joi.number().integer().min(1000).default(60000),
   NLP_SERVICE_ENABLED: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(false),
   NLP_SERVICE_BASE_URL: Joi.string().uri().default('http://localhost:3005'),
   NLP_SERVICE_TIMEOUT_MS: Joi.number().integer().min(100).default(2500)
@@ -66,6 +69,9 @@ function getConfig(env = process.env) {
     crmRecoveryQueueEnabled: validated.CRM_RECOVERY_QUEUE_ENABLED,
     crmRecoveryQueuePersistEnabled: validated.CRM_RECOVERY_QUEUE_PERSIST_ENABLED,
     crmRecoveryQueueFilePath: validated.CRM_RECOVERY_QUEUE_FILE_PATH,
+    crmRecoveryQueueTtlHours: Number(validated.CRM_RECOVERY_QUEUE_TTL_HOURS),
+    crmRecoveryMetricsLogEnabled: validated.CRM_RECOVERY_METRICS_LOG_ENABLED,
+    crmRecoveryMetricsLogIntervalMs: Number(validated.CRM_RECOVERY_METRICS_LOG_INTERVAL_MS),
     nlpServiceEnabled: validated.NLP_SERVICE_ENABLED,
     nlpServiceBaseUrl: validated.NLP_SERVICE_BASE_URL,
     nlpServiceTimeoutMs: Number(validated.NLP_SERVICE_TIMEOUT_MS)

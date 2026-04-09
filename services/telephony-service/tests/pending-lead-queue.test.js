@@ -79,4 +79,75 @@ describe('pending-lead-queue persistence', () => {
       fs.unlinkSync(filePath);
     }
   });
+
+  test('pruneExpired removes stale entries older than configured max age', () => {
+    const queue = createPendingLeadQueue({ persistEnabled: false });
+
+    queue.enqueue({
+      lead: {
+        client_id: 'fresh-1',
+        session_id: 'fresh-1',
+        status: 'new'
+      },
+      reason: 'CRM timeout',
+      requestId: 'rid-fresh'
+    });
+
+    queue.enqueue({
+      lead: {
+        client_id: 'stale-1',
+        session_id: 'stale-1',
+        status: 'new'
+      },
+      reason: 'CRM timeout',
+      requestId: 'rid-stale'
+    });
+
+    const staleItem = queue.list().find((item) => item.lead.client_id === 'stale-1');
+    staleItem.updatedAt = '2020-01-01T00:00:00.000Z';
+
+    const cleanup = queue.pruneExpired({
+      maxAgeHours: 1,
+      now: new Date('2020-01-01T03:00:00.000Z')
+    });
+
+    expect(cleanup.removed_count).toBe(1);
+    expect(cleanup.remaining_count).toBe(1);
+    expect(queue.list().map((i) => i.lead.client_id)).toEqual(['fresh-1']);
+  });
+
+  test('getMetrics returns queue and counter snapshot', async () => {
+    const queue = createPendingLeadQueue({ persistEnabled: false });
+
+    queue.enqueue({
+      lead: {
+        client_id: 'metrics-1',
+        session_id: 'metrics-1',
+        status: 'new'
+      },
+      reason: 'CRM timeout',
+      requestId: 'rid-metrics-1'
+    });
+
+    await queue.replay({
+      replayFn: async () => {
+        throw new Error('CRM still down');
+      },
+      requestId: 'rid-metrics-replay',
+      maxItems: 10
+    });
+
+    const metrics = queue.getMetrics({ maxAgeHours: 168 });
+
+    expect(metrics.queue_size).toBe(1);
+    expect(metrics.stale_count).toBe(0);
+    expect(metrics.counters).toEqual(
+      expect.objectContaining({
+        total_enqueued: 1,
+        total_replayed: 0,
+        total_replay_failures: 1,
+        total_pruned: 0
+      })
+    );
+  });
 });

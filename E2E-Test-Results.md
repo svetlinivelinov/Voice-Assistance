@@ -509,3 +509,110 @@ Implemented restart-safe persistence for the telephony pending lead replay queue
   - Branches: 67.33%
   - Functions: 70.63%
   - Lines: 79.81%
+
+---
+
+## Queue Retention Policy Increment (Completed on April 9, 2026)
+
+Implemented TTL-based cleanup for stale queued leads in telephony recovery queue:
+
+1. Queue-level prune API
+  - Added `pruneExpired({ maxAgeHours })` to remove stale entries by `updatedAt/createdAt` age.
+2. Recovery routes integration
+  - `GET /api/recovery/pending-leads` now includes automatic cleanup summary.
+  - `POST /api/recovery/pending-leads/replay` now includes cleanup summary after replay.
+  - Added `POST /api/recovery/pending-leads/cleanup` for explicit retention cleanup trigger.
+3. Configuration
+  - Added `CRM_RECOVERY_QUEUE_TTL_HOURS` (default `168`).
+4. Regression tests
+  - Added unit test for stale-entry pruning.
+  - Added API tests for cleanup endpoint success and validation errors.
+
+### Files Updated for Queue Retention Policy
+
+- `services/telephony-service/src/services/pending-lead-queue.js`
+- `services/telephony-service/src/routes/recovery.js`
+- `services/telephony-service/src/config.js`
+- `services/telephony-service/tests/pending-lead-queue.test.js`
+- `services/telephony-service/tests/recovery.test.js`
+
+### Validation After Queue Retention Policy
+
+- Lint: pass (`npm run lint`)
+- Tests: 31/31 suites pass, 225/225 tests pass (`npm test`)
+- Coverage:
+  - Statements: 79.69%
+  - Branches: 67.23%
+  - Functions: 71.00%
+  - Lines: 80.11%
+
+---
+
+## Recovery Queue Observability Increment (Completed on April 9, 2026)
+
+Implemented queue health metrics for operational visibility in telephony recovery flow:
+
+1. Queue metrics API
+  - Added `GET /api/recovery/metrics` endpoint.
+  - Returns queue enabled state, queue size, stale count, and lifecycle counters.
+2. Queue service instrumentation
+  - Added counters for:
+    - `total_enqueued`
+    - `total_replayed`
+    - `total_replay_failures`
+    - `total_pruned`
+  - Added `getMetrics({ maxAgeHours })` snapshot API.
+3. Test coverage
+  - Added unit test coverage for queue metric counters.
+  - Added API test coverage for metrics endpoint contract.
+
+### Files Updated for Recovery Queue Observability
+
+- `services/telephony-service/src/services/pending-lead-queue.js`
+- `services/telephony-service/src/routes/recovery.js`
+- `services/telephony-service/tests/pending-lead-queue.test.js`
+- `services/telephony-service/tests/recovery.test.js`
+
+### Validation After Recovery Queue Observability
+
+- Lint: pass (`npm run lint`)
+- Tests: 31/31 suites pass, 227/227 tests pass (`npm test`)
+- Coverage:
+  - Statements: 80.08%
+  - Branches: 66.92%
+  - Functions: 71.36%
+  - Lines: 80.49%
+
+---
+
+## Metrics Emission Increment (Completed on April 9, 2026)
+
+Implemented monitoring-pipeline friendly periodic metrics emission for telephony recovery queue:
+
+1. Feature-flagged periodic reporter
+  - Emits structured recovery queue metric snapshots on interval.
+  - Controlled by:
+    - `CRM_RECOVERY_METRICS_LOG_ENABLED` (default `false`)
+    - `CRM_RECOVERY_METRICS_LOG_INTERVAL_MS` (default `60000`)
+2. Reporter payload includes
+  - Queue size and stale count
+  - Enqueue/replay/failure/prune counters
+  - Service identifier
+3. Test coverage
+  - Added test verifying structured periodic emission behavior when enabled.
+
+### Files Updated for Metrics Emission
+
+- `services/telephony-service/src/config.js`
+- `services/telephony-service/src/app.js`
+- `services/telephony-service/tests/recovery-metrics-reporter.test.js`
+
+### Validation After Metrics Emission
+
+- Lint: pass (`npm run lint`)
+- Tests: 32/32 suites pass, 228/228 tests pass (`npm test`)
+- Coverage:
+  - Statements: 80.21%
+  - Branches: 66.96%
+  - Functions: 71.60%
+  - Lines: 80.63%

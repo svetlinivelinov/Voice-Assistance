@@ -17,6 +17,30 @@ const { createConversationEngineClient } = require('./clients/conversation-engin
 const { createCrmServiceClient } = require('./clients/crm-service-client');
 const { createNlpServiceClient } = require('./clients/nlp-service-client');
 
+function setupRecoveryMetricsReporter(app) {
+  const config = app.locals.config;
+  if (!config.crmRecoveryMetricsLogEnabled) {
+    return;
+  }
+
+  const interval = setInterval(() => {
+    const metrics = app.locals.pendingLeadQueue.getMetrics({
+      maxAgeHours: config.crmRecoveryQueueTtlHours
+    });
+    logger.info({
+      message: 'Recovery queue metrics snapshot',
+      service: config.serviceName,
+      recovery_queue: metrics
+    });
+  }, config.crmRecoveryMetricsLogIntervalMs);
+
+  if (interval.unref) {
+    interval.unref();
+  }
+
+  app.locals.recoveryMetricsInterval = interval;
+}
+
 function createApp(configOverride) {
   const app = express();
   const config = configOverride || getConfig();
@@ -33,6 +57,7 @@ function createApp(configOverride) {
   app.locals.conversationClient = createConversationEngineClient(config, logger);
   app.locals.crmClient = createCrmServiceClient(config, logger);
   app.locals.nlpClient = createNlpServiceClient(config, logger);
+  setupRecoveryMetricsReporter(app);
 
   app.use(express.json({
     verify: (req, _res, buf) => {
