@@ -2,11 +2,12 @@
 # https://docs.railway.app/reference/config-as-code
 
 [build]
-builder = "dockerfile"
+builder = "DOCKERFILE"
 dockerfilePath = "services/telephony-service/Dockerfile"
 
 [deploy]
 # Railway injects PORT automatically; the service reads it via config.js
+startCommand = "npm run start --workspace=@voice-assistant/telephony-service"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"

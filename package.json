@@ -11,6 +11,7 @@
         "node": ">=18.0.0"
     },
     "scripts": {
+        "start": "npm run start --workspace=@voice-assistant/telephony-service",
         "test": "jest --config jest.config.js --coverage --passWithNoTests",
         "test:watch": "jest --config jest.config.js --watch",
         "lint": "eslint \"packages/**/*.js\" \"services/**/*.js\"",
