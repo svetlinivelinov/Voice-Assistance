@@ -25,13 +25,13 @@ async function verifyTelnyxSignature(req, res, next) {
   if (!telnyxPublicKey) {
     return errorResponse(
       res,
-      ERROR_CODES.INTERNAL_ERROR,
-      'TELNYX_PUBLIC_KEY is not configured',
+      ERROR_CODES.UNAUTHORIZED,
+      'Webhook verification unavailable: TELNYX_PUBLIC_KEY not configured',
       {
         requestId: req.requestId,
         route: '/api/webhooks'
       },
-      500
+      401
     );
   }
 

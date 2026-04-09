@@ -15,7 +15,7 @@ function Test-Endpoint {
   )
 
   try {
-    $response = Invoke-WebRequest -Uri $Url -Method Get -TimeoutSec $TimeoutSec
+    $response = Invoke-WebRequest -Uri $Url -Method Get -TimeoutSec $TimeoutSec -UseBasicParsing
     if ($response.StatusCode -eq $ExpectedStatus) {
       Write-Host "[PASS] $Name -> $($response.StatusCode)"
       return $true
@@ -41,7 +41,7 @@ function Test-UnsignedWebhook {
   $body = '{"data":{"event_type":"call.initiated","id":"probe-unsigned"}}'
 
   try {
-    Invoke-WebRequest -Uri $Url -Method Post -Body $body -ContentType 'application/json' -TimeoutSec $TimeoutSec | Out-Null
+    Invoke-WebRequest -Uri $Url -Method Post -Body $body -ContentType 'application/json' -TimeoutSec $TimeoutSec -UseBasicParsing | Out-Null
     Write-Host "[FAIL] unsigned webhook probe -> expected 401, got success"
     return $false
   }
