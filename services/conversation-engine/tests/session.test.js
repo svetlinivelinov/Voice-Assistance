@@ -154,6 +154,35 @@ describe('conversation-engine session routes', () => {
     expect(fallbackResponse.body?.data?.reply_text).toBe('I did not catch that. Could you repeat your phone?');
   });
 
+  test('POST /api/session returns enhanced recovery prompt when feature flag is enabled', async () => {
+    const app = createApp({
+      ...baseConfig,
+      conversationRecoveryPromptsEnabled: true
+    });
+
+    await request(app)
+      .post('/api/session')
+      .send({
+        session_id: 'session-fallback-enhanced',
+        entities: {
+          name: 'Recovery User'
+        }
+      });
+
+    const fallbackResponse = await request(app)
+      .post('/api/session')
+      .send({
+        session_id: 'session-fallback-enhanced',
+        intent: 'unknown',
+        entities: {}
+      });
+
+    expect(fallbackResponse.status).toBe(200);
+    expect(fallbackResponse.body?.data?.reply_text).toBe(
+      'I did not catch that clearly. Please share your phone in a short sentence. For example: My phone number is +1 555 123 4567.'
+    );
+  });
+
   test('POST /api/session/:sessionId/feedback stores thumbs up/down feedback', async () => {
     const app = createApp(baseConfig);
 

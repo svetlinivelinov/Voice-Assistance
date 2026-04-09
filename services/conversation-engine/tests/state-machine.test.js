@@ -107,6 +107,18 @@ describe('resolveReplyText', () => {
     expect(text).toBe('I did not catch that. Could you repeat your property type?');
   });
 
+  test('uses enhanced recovery prompt when feature flag is enabled', () => {
+    const text = resolveReplyText({
+      missingFields: ['phone'],
+      hasNewEntityData: false,
+      intent: 'unknown',
+      recoveryPromptsEnabled: true
+    });
+    expect(text).toBe(
+      'I did not catch that clearly. Please share your phone in a short sentence. For example: My phone number is +1 555 123 4567.'
+    );
+  });
+
   test('returns FIELD_PROMPT for normal slot-fill turn', () => {
     expect(resolveReplyText({ missingFields: ['budget'], hasNewEntityData: true, intent: 'collect_requirements' }))
       .toBe('What is your budget range for the property?');
@@ -171,6 +183,25 @@ describe('buildNextSessionState', () => {
 
     expect(session.step).toBe('collect_phone');
     expect(replyText).toBe('I did not catch that. Could you repeat your phone?');
+  });
+
+  test('returns enhanced fallback reply when recovery prompt feature flag is enabled', () => {
+    const prev = {
+      session_id: 'sess-1',
+      entities: { name: 'Jane' },
+      missing_fields: ['phone'],
+      timestamp: new Date().toISOString()
+    };
+
+    const { replyText } = buildNextSessionState({
+      previousSession: prev,
+      incomingSession: { session_id: 'sess-1', intent: 'unknown', entities: {} },
+      options: { recoveryPromptsEnabled: true }
+    });
+
+    expect(replyText).toBe(
+      'I did not catch that clearly. Please share your phone in a short sentence. For example: My phone number is +1 555 123 4567.'
+    );
   });
 
   test('reaches completed state when all entities provided', () => {

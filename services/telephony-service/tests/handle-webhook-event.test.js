@@ -1,5 +1,5 @@
 const { createCallSessionStore } = require('../src/services/call-session-store');
-const { handleWebhookEvent, resolveAction, resolveState } = require('../src/services/handle-webhook-event');
+const { handleWebhookEvent } = require('../src/services/handle-webhook-event');
 
 describe('handleWebhookEvent', () => {
   test('creates a ringing session and issues answer_inbound_call on call.initiated', () => {

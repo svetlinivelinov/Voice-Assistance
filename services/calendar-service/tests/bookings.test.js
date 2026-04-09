@@ -164,6 +164,40 @@ describe('POST /api/bookings', () => {
     );
   });
 
+  test('returns cached booking for duplicate session/time request (idempotent replay)', async () => {
+    const listEvents = jest.fn().mockResolvedValue([]);
+    const createEvent = jest.fn().mockResolvedValue({
+      id: 'event-idem-001',
+      htmlLink: 'https://calendar.google.com/event?eid=idem',
+      summary: 'Property Viewing',
+      start: { dateTime: FUTURE_START.toISOString(), timeZone: 'UTC' },
+      end: { dateTime: FUTURE_END.toISOString(), timeZone: 'UTC' }
+    });
+
+    const app = makeApp({ listEvents, createEvent });
+    const payload = {
+      session_id: 'sess-idem-1',
+      summary: 'Property Viewing',
+      start_datetime: FUTURE_START.toISOString(),
+      end_datetime: FUTURE_END.toISOString(),
+      time_zone: 'UTC'
+    };
+
+    const first = await request(app)
+      .post('/api/bookings')
+      .send(payload);
+
+    const second = await request(app)
+      .post('/api/bookings')
+      .send(payload);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(createEvent).toHaveBeenCalledTimes(1);
+    expect(second.body?.data?.idempotent_replay).toBe(true);
+    expect(second.body?.data?.booking?.event_id).toBe('event-idem-001');
+  });
+
   test('returns 500 when createEvent throws', async () => {
     const listEvents = jest.fn().mockResolvedValue([]);
     const createEvent = jest.fn().mockRejectedValue(new Error('Calendar API error'));

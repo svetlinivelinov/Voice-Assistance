@@ -111,16 +111,21 @@ async function routeToApp(app, urlStr, options = {}) {
 }
 
 // ── Fire a signed webhook event ────────────────────────────────────────────
-async function fireEvent(app, signer, body) {
+async function fireEvent(app, signer, body, headers = {}) {
   const payload = JSON.stringify(body);
   const { timestamp, signature } = await signer.signPayload(payload);
 
-  return request(app)
+  let req = request(app)
     .post('/api/webhooks')
     .set('content-type', 'application/json')
     .set('telnyx-timestamp', timestamp)
-    .set('telnyx-signature-ed25519', signature)
-    .send(payload);
+    .set('telnyx-signature-ed25519', signature);
+
+  Object.entries(headers).forEach(([k, v]) => {
+    req = req.set(k, String(v));
+  });
+
+  return req.send(payload);
 }
 
 // ── Drain the event loop ───────────────────────────────────────────────────
@@ -352,6 +357,36 @@ describe('E2E: complete call lifecycle (telephony → NLP → CE → CRM)', () =
     expect(upsertArg.client_id).toBe(callControlId);
     expect(['new', 'qualified', 'scheduled', 'closed']).toContain(upsertArg.status);
   });
+
+  test('duplicate call.hangup event id is idempotent and does not duplicate CRM writes', async () => {
+    const callControlId = 'e2e-cid-hangup-dup';
+
+    jest.spyOn(global, 'fetch').mockImplementation(async (url, opts) => {
+      const urlStr = String(url);
+      if (urlStr.startsWith('http://localhost:3004/')) return routeToApp(crmApp, urlStr, opts);
+      if (urlStr.startsWith('https://api.telnyx.com/')) return { ok: true, status: 200, json: async () => ({}) };
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    await fireEvent(telApp, signer, buildEvent({ id: 'e2e-hdup-init', eventType: 'call.initiated', callControlId }));
+    await drainAsync();
+
+    const duplicateEvent = buildEvent({
+      id: 'e2e-hdup-1',
+      eventType: 'call.hangup',
+      callControlId,
+      payload: { from: '+15557654321' }
+    });
+
+    const first = await fireEvent(telApp, signer, duplicateEvent);
+    const second = await fireEvent(telApp, signer, duplicateEvent);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    await drainAsync();
+
+    expect(mockSheetsClient.upsertLead).toHaveBeenCalledTimes(1);
+  });
 });
 
 // =============================================================================
@@ -525,6 +560,19 @@ describe('E2E: in-process service health gates', () => {
     // ok() wraps response in { data: { ... } } — status field lives inside data
     expect(res.body.data.status).toMatch(/^(ok|healthy)$/i);
   });
+
+  test.each([
+    ['telephony-service'],
+    ['conversation-engine'],
+    ['crm-service'],
+    ['calendar-service'],
+    ['nlp-intent-service']
+  ])('%s /ready returns 200 with status:ready', async (name) => {
+    const app = apps[name];
+    const res = await request(app).get('/ready');
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('ready');
+  });
 });
 
 // =============================================================================
@@ -605,6 +653,177 @@ describe('E2E: NLP service standalone validation', () => {
       .send({ text: '' });
 
     expect(res.status).toBe(400);
+    expect(res.body.error).toBeDefined();
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toMatch(/invalid request payload/i);
+    expect(res.body.error.details).toBeDefined();
+    expect(Array.isArray(res.body.error.details.issues)).toBe(true);
+  });
+});
+
+// =============================================================================
+// Suite 7 — Error envelope contract checks across services
+// =============================================================================
+describe('E2E: standard error envelope contract', () => {
+  let ceApp;
+
+  beforeAll(() => {
+    ceApp = createCeApp({
+      nodeEnv: 'test',
+      serviceName: 'conversation-engine',
+      port: 3002,
+      conversationStateMachineEnabled: true
+    });
+  });
+
+  test('conversation-engine invalid payload returns standard error envelope', async () => {
+    const res = await request(ceApp)
+      .post('/api/session')
+      .set('content-type', 'application/json')
+      .send({ intent: 'collect_requirements' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeDefined();
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(typeof res.body.error.message).toBe('string');
+    expect(res.body.error.details).toBeDefined();
+    expect(Array.isArray(res.body.error.details.issues)).toBe(true);
+  });
+});
+
+// =============================================================================
+// Suite 8 — Request ID propagation across service-to-service calls
+// =============================================================================
+describe('E2E: X-Request-Id propagation (telephony -> NLP/CE/CRM)', () => {
+  let telApp, ceApp, crmApp, nlpApp;
+  let mockSheetsClient;
+  let signer;
+
+  beforeAll(async () => {
+    signer = await createWebhookSigner();
+
+    nlpApp = createNlpApp({ nodeEnv: 'test', serviceName: 'nlp-intent-service', port: 3005, nlpProvider: 'regex' });
+    ceApp = createCeApp({ nodeEnv: 'test', serviceName: 'conversation-engine', port: 3002, conversationStateMachineEnabled: true });
+
+    mockSheetsClient = {
+      getLead: jest.fn(async () => null),
+      upsertLead: jest.fn(async (lead) => ({ action: 'created', lead }))
+    };
+    crmApp = createCrmApp({ nodeEnv: 'test', serviceName: 'crm-service', port: 3004, googleSheetsEnabled: false });
+    crmApp.locals.sheetsClient = mockSheetsClient;
+
+    telApp = createTelephonyApp({
+      nodeEnv: 'test',
+      serviceName: 'telephony-service',
+      port: 3001,
+      telnyxPublicKey: signer.publicKey,
+      telnyxApiKey: 'tel-prop-key',
+      telnyxApiBaseUrl: 'https://api.telnyx.com/v2',
+      telnyxApiTimeoutMs: 5000,
+      maxRetries: 0,
+      voiceLoopGreeting: 'Hello! How can I help with your property search?',
+      asrEnabled: true,
+      openaiApiKey: 'openai-prop-key',
+      openaiWhisperModel: 'whisper-1',
+      asrTimeoutMs: 5000,
+      asrMinConfidence: 0.0,
+      ttsEnabled: false,
+      elevenlabsApiKey: '',
+      elevenlabsVoiceId: '',
+      elevenlabsModel: 'eleven_multilingual_v2',
+      ttsTimeoutMs: 5000,
+      conversationEngineEnabled: true,
+      conversationEngineBaseUrl: 'http://localhost:3002',
+      conversationEngineTimeoutMs: 5000,
+      crmServiceEnabled: true,
+      crmServiceBaseUrl: 'http://localhost:3004',
+      crmServiceTimeoutMs: 5000,
+      nlpServiceEnabled: true,
+      nlpServiceBaseUrl: 'http://localhost:3005',
+      nlpServiceTimeoutMs: 5000
+    });
+  });
+
+  afterEach(async () => {
+    await drainAsync();
+    jest.restoreAllMocks();
+  });
+
+  test('preserves incoming request ID for downstream NLP, CE, and CRM calls', async () => {
+    const callControlId = 'e2e-prop-001';
+    const requestId = 'rid-e2e-001';
+    const forwardedHeaders = [];
+
+    jest.spyOn(global, 'fetch').mockImplementation(async (url, opts = {}) => {
+      const urlStr = String(url);
+      if (urlStr.startsWith('http://localhost:3002/')) {
+        forwardedHeaders.push({ service: 'ce', requestId: opts?.headers?.['x-request-id'] });
+        return routeToApp(ceApp, urlStr, opts);
+      }
+      if (urlStr.startsWith('http://localhost:3004/')) {
+        forwardedHeaders.push({ service: 'crm', requestId: opts?.headers?.['x-request-id'] });
+        return routeToApp(crmApp, urlStr, opts);
+      }
+      if (urlStr.startsWith('http://localhost:3005/')) {
+        forwardedHeaders.push({ service: 'nlp', requestId: opts?.headers?.['x-request-id'] });
+        return routeToApp(nlpApp, urlStr, opts);
+      }
+      if (urlStr === 'https://api.openai.com/v1/audio/transcriptions') {
+        return { ok: true, json: async () => ({ text: 'I need an apartment in Austin budget 2000' }) };
+      }
+      if (urlStr.startsWith('https://api.telnyx.com/')) {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      throw new Error(`Unexpected URL in request-id propagation test: ${urlStr}`);
+    });
+
+    await fireEvent(
+      telApp,
+      signer,
+      buildEvent({ id: 'prop-init', eventType: 'call.initiated', callControlId }),
+      { 'X-Request-Id': requestId }
+    );
+
+    await fireEvent(
+      telApp,
+      signer,
+      buildEvent({
+        id: 'prop-answered',
+        eventType: 'call.answered',
+        callControlId,
+        payload: {
+          audio_base64: Buffer.from('fake-audio-data').toString('base64'),
+          audio_mime_type: 'audio/wav'
+        }
+      }),
+      { 'X-Request-Id': requestId }
+    );
+
+    await fireEvent(
+      telApp,
+      signer,
+      buildEvent({
+        id: 'prop-hangup',
+        eventType: 'call.hangup',
+        callControlId,
+        payload: { from: '+15550001111' }
+      }),
+      { 'X-Request-Id': requestId }
+    );
+
+    await drainAsync();
+
+    const nlpForwarded = forwardedHeaders.filter((x) => x.service === 'nlp');
+    const ceForwarded = forwardedHeaders.filter((x) => x.service === 'ce');
+    const crmForwarded = forwardedHeaders.filter((x) => x.service === 'crm');
+
+    expect(nlpForwarded.length).toBeGreaterThan(0);
+    expect(ceForwarded.length).toBeGreaterThan(0);
+    expect(crmForwarded.length).toBeGreaterThan(0);
+
+    nlpForwarded.forEach((item) => expect(item.requestId).toBe(requestId));
+    ceForwarded.forEach((item) => expect(item.requestId).toBe(requestId));
+    crmForwarded.forEach((item) => expect(item.requestId).toBe(requestId));
   });
 });
 
@@ -670,5 +889,46 @@ describe('E2E: calendar service with mock calendar client', () => {
     expect(res.status).toBe(200);
     expect(mockCalendarClient.createEvent).toHaveBeenCalledTimes(1);
     expect(res.body.data.booking.event_id).toBe('cal-evt-001');
+  });
+
+  test('duplicate booking request is idempotent and does not create duplicate events', async () => {
+    const start = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString();
+    const end = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000).toISOString();
+    const payload = {
+      session_id: 'cal-test-idem-session',
+      summary: 'Property Viewing — Idempotent',
+      start_datetime: start,
+      end_datetime: end,
+      time_zone: 'UTC'
+    };
+
+    const first = await request(calApp)
+      .post('/api/bookings')
+      .set('content-type', 'application/json')
+      .send(payload);
+
+    const second = await request(calApp)
+      .post('/api/bookings')
+      .set('content-type', 'application/json')
+      .send(payload);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(mockCalendarClient.createEvent).toHaveBeenCalledTimes(1);
+    expect(second.body.data.idempotent_replay).toBe(true);
+    expect(second.body.data.booking.event_id).toBe('cal-evt-001');
+  });
+
+  test('calendar availability outage returns predictable error envelope', async () => {
+    mockCalendarClient.listEvents.mockRejectedValueOnce(new Error('calendar unavailable'));
+
+    const res = await request(calApp).get('/api/bookings/availability');
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBeDefined();
+    expect(res.body.error.code).toBe('INTERNAL_ERROR');
+    expect(typeof res.body.error.message).toBe('string');
+    expect(res.body.error.details).toBeDefined();
+    expect(res.body.error.details.reason).toBe('calendar unavailable');
   });
 });

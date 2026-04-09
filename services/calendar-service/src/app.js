@@ -16,6 +16,7 @@ function createApp(configOverride) {
   app.locals.calendarClient = config.googleCalendarEnabled
     ? createGoogleCalendarClient(config)
     : null;
+  app.locals.bookingIdempotencyStore = new Map();
 
   app.use(express.json());
   app.use(requestContext);

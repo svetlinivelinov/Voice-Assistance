@@ -58,7 +58,10 @@ router.post('/session', (req, res) => {
   const previousSession = req.app.locals.sessionStore.get(value.session_id);
   const { session: nextSession, replyText } = buildNextSessionState({
     previousSession,
-    incomingSession: value
+    incomingSession: value,
+    options: {
+      recoveryPromptsEnabled: req.app.locals.config.conversationRecoveryPromptsEnabled
+    }
   });
   req.app.locals.sessionStore.upsert(value.session_id, () => nextSession);
 

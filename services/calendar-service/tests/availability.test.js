@@ -2,9 +2,8 @@ const {
   hasConflict,
   generateCandidateSlots,
   findAvailableSlots,
-  SLOT_DURATION_MS,
-  WORKING_HOUR_START,
-  WORKING_HOUR_END
+  rankAlternativeSlots,
+  SLOT_DURATION_MS
 } = require('../src/services/availability');
 
 describe('hasConflict', () => {
@@ -122,5 +121,36 @@ describe('findAvailableSlots', () => {
 
     const available = findAvailableSlots({ existingEvents: [busyEvent], timeZone: 'UTC', maxSlots: 3 });
     expect(available).toEqual([]);
+  });
+});
+
+describe('rankAlternativeSlots', () => {
+  test('orders alternatives by proximity to requested start', () => {
+    const preferred = '2026-04-21T10:00:00.000Z';
+    const slots = [
+      {
+        startDateTime: '2026-04-21T14:00:00.000Z',
+        endDateTime: '2026-04-21T15:00:00.000Z',
+        timeZone: 'UTC'
+      },
+      {
+        startDateTime: '2026-04-21T11:00:00.000Z',
+        endDateTime: '2026-04-21T12:00:00.000Z',
+        timeZone: 'UTC'
+      },
+      {
+        startDateTime: '2026-04-21T12:00:00.000Z',
+        endDateTime: '2026-04-21T13:00:00.000Z',
+        timeZone: 'UTC'
+      }
+    ];
+
+    const ranked = rankAlternativeSlots(slots, preferred);
+
+    expect(ranked.map((s) => s.startDateTime)).toEqual([
+      '2026-04-21T11:00:00.000Z',
+      '2026-04-21T12:00:00.000Z',
+      '2026-04-21T14:00:00.000Z'
+    ]);
   });
 });

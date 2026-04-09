@@ -5,18 +5,23 @@ function createCrmServiceClient(config, logger) {
     return null;
   }
 
-  async function upsertLead(lead) {
+  async function upsertLead(lead, requestId) {
     return retryWithBackoff(
       async () => {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), config.crmServiceTimeoutMs);
 
         try {
+          const headers = {
+            'content-type': 'application/json'
+          };
+          if (requestId) {
+            headers['x-request-id'] = requestId;
+          }
+
           const response = await fetch(`${config.crmServiceBaseUrl}/api/leads`, {
             method: 'POST',
-            headers: {
-              'content-type': 'application/json'
-            },
+            headers,
             body: JSON.stringify(lead),
             signal: controller.signal
           });

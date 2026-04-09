@@ -122,11 +122,11 @@ async function executeAction({
 
     if (transcript) {
       extractedEntities = nlpClient
-        ? await nlpClient.extractEntities(transcript).catch(() => extractEntitiesFromTranscript(transcript))
+        ? await nlpClient.extractEntities(transcript, requestId).catch(() => extractEntitiesFromTranscript(transcript))
         : extractEntitiesFromTranscript(transcript);
 
       if (nlpClient?.classifyIntent) {
-        const classified = await nlpClient.classifyIntent(transcript).catch(() => null);
+        const classified = await nlpClient.classifyIntent(transcript, requestId).catch(() => null);
         if (classified?.intent) {
           intent = classified.intent;
           intentConfidence = typeof classified.confidence === 'number'
@@ -162,7 +162,8 @@ async function executeAction({
         const conversationResponse = await conversationClient.planReply({
           sessionId: session.sessionId,
           intent,
-          entities: extractedEntities
+          entities: extractedEntities,
+          requestId
         });
 
         const plannedReply = conversationResponse?.data?.reply_text;
@@ -247,7 +248,7 @@ async function executeAction({
 
       const extractedEntities = asr.status === 'ok' && asr.transcript
         ? (nlpClient
-            ? await nlpClient.extractEntities(asr.transcript).catch(() => extractEntitiesFromTranscript(asr.transcript))
+            ? await nlpClient.extractEntities(asr.transcript, requestId).catch(() => extractEntitiesFromTranscript(asr.transcript))
             : extractEntitiesFromTranscript(asr.transcript))
         : {};
 
@@ -287,7 +288,8 @@ async function executeAction({
           const conversationResponse = await conversationClient.planReply({
             sessionId: session.sessionId,
             intent: asr.status === 'ok' && asr.transcript ? 'collect_requirements' : 'unknown',
-            entities: extractedEntities
+            entities: extractedEntities,
+            requestId
           });
 
           const plannedReply = conversationResponse?.data?.reply_text;
@@ -371,7 +373,7 @@ async function executeAction({
           session_id: session.sessionId
         };
 
-        await crmClient.upsertLead(lead);
+        await crmClient.upsertLead(lead, requestId);
 
         if (callSessionStore && session?.callControlId) {
           callSessionStore.upsert(session.callControlId, (previous) => ({

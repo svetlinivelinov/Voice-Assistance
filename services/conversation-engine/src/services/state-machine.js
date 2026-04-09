@@ -18,6 +18,16 @@ const FIELD_PROMPTS = {
   viewing_date: 'What date works best for a property viewing?'
 };
 
+const RECOVERY_EXAMPLES = {
+  name: 'For example: My name is Jane Doe.',
+  phone: 'For example: My phone number is +1 555 123 4567.',
+  budget: 'For example: My budget is 1800 dollars per month.',
+  location: 'For example: I am looking in Downtown Austin.',
+  property_type: 'For example: I need a 2-bedroom apartment.',
+  move_in_date: 'For example: I can move in on May 1st.',
+  viewing_date: 'For example: I am available for viewing next Tuesday at 3 PM.'
+};
+
 function normalizeEntities(entities) {
   if (!entities || typeof entities !== 'object' || Array.isArray(entities)) {
     return {};
@@ -55,20 +65,24 @@ function resolveIntent(providedIntent, missingFields) {
   return missingFields.length ? 'collect_requirements' : 'schedule_viewing';
 }
 
-function resolveReplyText({ missingFields, hasNewEntityData, intent }) {
+function resolveReplyText({ missingFields, hasNewEntityData, intent, recoveryPromptsEnabled = false }) {
   if (!missingFields.length) {
     return 'Great, I have all required details. I can proceed to scheduling options.';
   }
 
   if (!hasNewEntityData && (intent === 'fallback' || intent === 'unknown')) {
     const fieldLabel = missingFields[0].replace(/_/g, ' ');
+    if (recoveryPromptsEnabled) {
+      const example = RECOVERY_EXAMPLES[missingFields[0]] || '';
+      return `I did not catch that clearly. Please share your ${fieldLabel} in a short sentence. ${example}`.trim();
+    }
     return `I did not catch that. Could you repeat your ${fieldLabel}?`;
   }
 
   return FIELD_PROMPTS[missingFields[0]];
 }
 
-function buildNextSessionState({ previousSession, incomingSession }) {
+function buildNextSessionState({ previousSession, incomingSession, options = {} }) {
   const normalizedIncomingEntities = normalizeEntities(incomingSession.entities);
   const mergedEntities = {
     ...(previousSession?.entities || {}),
@@ -93,7 +107,8 @@ function buildNextSessionState({ previousSession, incomingSession }) {
     replyText: resolveReplyText({
       missingFields,
       hasNewEntityData,
-      intent: incomingSession.intent
+      intent: incomingSession.intent,
+      recoveryPromptsEnabled: options.recoveryPromptsEnabled
     })
   };
 }

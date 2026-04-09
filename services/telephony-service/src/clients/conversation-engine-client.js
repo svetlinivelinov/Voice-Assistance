@@ -5,7 +5,7 @@ function createConversationEngineClient(config, logger) {
     return null;
   }
 
-  async function planReply({ sessionId, intent = 'collect_requirements', entities = {} }) {
+  async function planReply({ sessionId, intent = 'collect_requirements', entities = {}, requestId }) {
     return retryWithBackoff(
       async () => {
         const controller = new AbortController();
@@ -14,11 +14,16 @@ function createConversationEngineClient(config, logger) {
         }, config.conversationEngineTimeoutMs);
 
         try {
+          const headers = {
+            'content-type': 'application/json'
+          };
+          if (requestId) {
+            headers['x-request-id'] = requestId;
+          }
+
           const response = await fetch(`${config.conversationEngineBaseUrl}/api/session`, {
             method: 'POST',
-            headers: {
-              'content-type': 'application/json'
-            },
+            headers,
             body: JSON.stringify({
               session_id: sessionId,
               intent,

@@ -1,5 +1,5 @@
 const { GoogleSpreadsheet } = require('google-spreadsheet');
-const { GoogleAuth } = require('google-auth-library');
+const { GoogleAuth, OAuth2Client } = require('google-auth-library');
 
 // Column header order matches the client data contract.
 const SHEET_HEADERS = [
@@ -27,7 +27,6 @@ function buildGoogleAuth(config) {
     });
   }
 
-  const { GoogleAuth: GA, OAuth2Client } = require('google-auth-library');
   const oauth2 = new OAuth2Client(config.googleClientId, config.googleClientSecret);
   oauth2.setCredentials({ refresh_token: config.googleRefreshToken });
   return oauth2;

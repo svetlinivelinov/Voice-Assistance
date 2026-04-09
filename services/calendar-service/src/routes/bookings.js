@@ -1,6 +1,6 @@
 const express = require('express');
 const { error: errorResponse, ok, ERROR_CODES, Joi } = require('@voice-assistant/shared');
-const { findAvailableSlots, hasConflict } = require('../services/availability');
+const { findAvailableSlots, hasConflict, rankAlternativeSlots } = require('../services/availability');
 
 const router = express.Router();
 
@@ -69,6 +69,7 @@ router.get('/bookings/availability', async (req, res) => {
 router.post('/bookings', async (req, res) => {
   const calendarClient = req.app.locals.calendarClient;
   const config = req.app.locals.config;
+  const bookingIdempotencyStore = req.app.locals.bookingIdempotencyStore;
 
   if (!calendarClient) {
     return errorResponse(
@@ -98,6 +99,16 @@ router.post('/bookings', async (req, res) => {
     );
   }
 
+  const bookingKey = `${value.session_id}|${value.start_datetime}|${value.end_datetime}`;
+  const existingBooking = bookingIdempotencyStore?.get(bookingKey);
+  if (existingBooking) {
+    return ok(res, {
+      booking: existingBooking,
+      requestId: req.requestId,
+      idempotent_replay: true
+    });
+  }
+
   try {
     const now = new Date();
     const windowEnd = new Date(new Date(value.end_datetime).getTime() + 60 * 1000);
@@ -109,12 +120,15 @@ router.post('/bookings', async (req, res) => {
     });
 
     if (hasConflict(existingEvents, value.start_datetime, value.end_datetime)) {
-      const alternativeSlots = findAvailableSlots({
+      const generatedAlternatives = findAvailableSlots({
         existingEvents,
         timeZone: value.time_zone || config.calendarTimeZone,
         maxSlots: 3,
         from: new Date(value.start_datetime)
       });
+      const alternativeSlots = config.calendarAlternativeRankingEnabled
+        ? rankAlternativeSlots(generatedAlternatives, value.start_datetime)
+        : generatedAlternatives;
 
       return errorResponse(
         res,
@@ -140,15 +154,19 @@ router.post('/bookings', async (req, res) => {
       sessionId: value.session_id
     });
 
+    const booking = {
+      event_id: event.id,
+      html_link: event.htmlLink,
+      summary: event.summary,
+      start: event.start,
+      end: event.end,
+      session_id: value.session_id
+    };
+
+    bookingIdempotencyStore?.set(bookingKey, booking);
+
     return ok(res, {
-      booking: {
-        event_id: event.id,
-        html_link: event.htmlLink,
-        summary: event.summary,
-        start: event.start,
-        end: event.end,
-        session_id: value.session_id
-      },
+      booking,
       requestId: req.requestId
     });
   } catch (err) {

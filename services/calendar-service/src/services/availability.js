@@ -92,10 +92,34 @@ function findAvailableSlots({ existingEvents, timeZone, maxSlots = 3, from }) {
   return available;
 }
 
+/**
+ * Rank candidate alternatives by temporal closeness to a preferred start time.
+ * Keeps response shape unchanged (same slot objects, reordered only).
+ * @param {Array<{startDateTime: string, endDateTime: string, timeZone: string}>} slots
+ * @param {string} preferredStartDateTime
+ * @returns {Array}
+ */
+function rankAlternativeSlots(slots, preferredStartDateTime) {
+  if (!Array.isArray(slots) || !slots.length || !preferredStartDateTime) {
+    return Array.isArray(slots) ? slots : [];
+  }
+
+  const preferredStart = new Date(preferredStartDateTime).getTime();
+
+  return [...slots]
+    .map((slot) => ({
+      slot,
+      distanceMs: Math.abs(new Date(slot.startDateTime).getTime() - preferredStart)
+    }))
+    .sort((a, b) => a.distanceMs - b.distanceMs)
+    .map((entry) => entry.slot);
+}
+
 module.exports = {
   hasConflict,
   generateCandidateSlots,
   findAvailableSlots,
+  rankAlternativeSlots,
   SLOT_DURATION_MS,
   WORKING_HOUR_START,
   WORKING_HOUR_END

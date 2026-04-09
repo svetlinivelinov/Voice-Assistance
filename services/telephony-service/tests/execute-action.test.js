@@ -71,13 +71,14 @@ describe('executeAction', () => {
       requestId: 'r-gather'
     });
 
-    expect(classifyIntent).toHaveBeenCalledWith('I am looking in downtown for an apartment');
-    expect(extractEntities).toHaveBeenCalledWith('I am looking in downtown for an apartment');
+    expect(classifyIntent).toHaveBeenCalledWith('I am looking in downtown for an apartment', 'r-gather');
+    expect(extractEntities).toHaveBeenCalledWith('I am looking in downtown for an apartment', 'r-gather');
     expect(planReply).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'session-gather-1',
         intent: 'provide_location',
-        entities: expect.objectContaining({ location: 'Downtown' })
+        entities: expect.objectContaining({ location: 'Downtown' }),
+        requestId: 'r-gather'
       })
     );
     expect(requestWithRetry).toHaveBeenCalledWith(
@@ -379,7 +380,8 @@ describe('executeAction', () => {
         phone: '+15551234567',
         status: 'new',
         session_id: 'session-close-1'
-      })
+      }),
+      'r-close'
     );
     expect(storeUpsert).toHaveBeenCalledTimes(1);
     expect(result).toEqual(
@@ -388,5 +390,49 @@ describe('executeAction', () => {
         crm: expect.objectContaining({ status: 'persisted_partial_lead' })
       })
     );
+  });
+
+  test('returns predictable CRM failure contract when close_call_session persistence fails', async () => {
+    const crmUpsert = jest.fn().mockRejectedValue(new Error('CRM unavailable'));
+    const loggerError = jest.fn();
+
+    const result = await executeAction({
+      action: 'close_call_session',
+      session: {
+        callControlId: 'call-close-2',
+        sessionId: 'session-close-2',
+        latestTranscript: 'Need a condo in Austin',
+        latestEntities: {
+          phone: '+15550002222',
+          property_type: 'condo',
+          budget: '2200',
+          location: 'Austin'
+        }
+      },
+      payload: {},
+      callSessionStore: { upsert: jest.fn() },
+      telnyxClient: null,
+      asrAdapter: null,
+      ttsAdapter: null,
+      conversationClient: null,
+      crmClient: { upsertLead: crmUpsert },
+      conversationEngineEnabled: false,
+      crmServiceEnabled: true,
+      asrMinConfidence: 0.6,
+      greetingMessage: 'hello',
+      logger: { error: loggerError },
+      requestId: 'r-close-fail'
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'closed',
+        crm: expect.objectContaining({
+          status: 'failed',
+          reason: 'CRM unavailable'
+        })
+      })
+    );
+    expect(loggerError).toHaveBeenCalledTimes(1);
   });
 });

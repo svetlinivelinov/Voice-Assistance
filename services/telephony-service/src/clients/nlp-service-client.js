@@ -9,16 +9,21 @@ function createNlpServiceClient(config, logger) {
     return null;
   }
 
-  async function post(path, body) {
+  async function post(path, body, requestId) {
     return retryWithBackoff(
       async () => {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), config.nlpServiceTimeoutMs);
 
         try {
+          const headers = { 'content-type': 'application/json' };
+          if (requestId) {
+            headers['x-request-id'] = requestId;
+          }
+
           const response = await fetch(`${config.nlpServiceBaseUrl}${path}`, {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers,
             body: JSON.stringify(body),
             signal: controller.signal
           });
@@ -49,13 +54,13 @@ function createNlpServiceClient(config, logger) {
     );
   }
 
-  async function classifyIntent(text) {
-    const result = await post('/api/classify-intent', { text });
+  async function classifyIntent(text, requestId) {
+    const result = await post('/api/classify-intent', { text }, requestId);
     return result?.data ?? { intent: 'unknown', confidence: 0, alternatives: [] };
   }
 
-  async function extractEntities(text) {
-    const result = await post('/api/extract-entities', { text });
+  async function extractEntities(text, requestId) {
+    const result = await post('/api/extract-entities', { text }, requestId);
     return result?.data?.entities ?? {};
   }
 
