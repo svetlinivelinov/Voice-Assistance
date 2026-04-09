@@ -1,0 +1,13 @@
+# Railway deployment configuration for telephony-service
+# https://docs.railway.app/reference/config-as-code
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "services/telephony-service/Dockerfile"
+
+[deploy]
+# Railway injects PORT automatically; the service reads it via config.js
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

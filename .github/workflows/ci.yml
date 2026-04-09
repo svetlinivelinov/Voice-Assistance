@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "telnyx-live-test", "develop"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests with coverage
+        run: npm test
+        env:
+          NODE_ENV: test
+          # All feature flags off in CI so no real external calls are made
+          ASR_ENABLED: "false"
+          TTS_ENABLED: "false"
+          CONVERSATION_ENGINE_ENABLED: "false"
+          CRM_SERVICE_ENABLED: "false"
+          NLP_SERVICE_ENABLED: "false"
+          CRM_RECOVERY_QUEUE_PERSIST_ENABLED: "false"
+          CRM_RECOVERY_METRICS_LOG_ENABLED: "false"
+
+      - name: Upload coverage report
+        if: matrix.node-version == '18.x'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
