@@ -1,0 +1,12 @@
+# Railpack config for Railway – npm workspaces monorepo
+# https://railpack.com/config/file
+
+[phases.install]
+cmds = ["npm ci"]
+
+# No compile step needed for plain Node.js
+[phases.build]
+cmds = []
+
+[start]
+cmd = "node services/telephony-service/src/index.js"
