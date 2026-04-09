@@ -5,8 +5,10 @@ const { getConfig } = require('./config');
 const requestContext = require('./middleware/request-context');
 const errorHandler = require('./middleware/error-handler');
 const healthRoutes = require('./routes/health');
-const placeholderRoutes = require('./routes/webhooks');
+const webhooksRoutes = require('./routes/webhooks');
+const recoveryRoutes = require('./routes/recovery');
 const { createCallSessionStore } = require('./services/call-session-store');
+const { createPendingLeadQueue } = require('./services/pending-lead-queue');
 const { createTelnyxApiClient } = require('./clients/telnyx-api-client');
 const { logger } = require('./logging/logger');
 const { createWhisperAsrAdapter } = require('./adapters/whisper-asr-adapter');
@@ -21,6 +23,10 @@ function createApp(configOverride) {
 
   app.locals.config = config;
   app.locals.callSessionStore = createCallSessionStore();
+  app.locals.pendingLeadQueue = createPendingLeadQueue({
+    persistEnabled: config.crmRecoveryQueuePersistEnabled,
+    persistFilePath: config.crmRecoveryQueueFilePath
+  });
   app.locals.telnyxClient = createTelnyxApiClient(config, logger);
   app.locals.asrAdapter = createWhisperAsrAdapter(config, logger);
   app.locals.ttsAdapter = createElevenLabsTtsAdapter(config, logger);
@@ -36,7 +42,8 @@ function createApp(configOverride) {
   app.use(requestContext);
 
   app.use('/', healthRoutes);
-  app.use('/api', placeholderRoutes);
+  app.use('/api', webhooksRoutes);
+  app.use('/api', recoveryRoutes);
 
   app.use((req, _res, next) => {
     const err = new Error('Not Found');

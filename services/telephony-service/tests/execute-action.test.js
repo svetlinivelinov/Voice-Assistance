@@ -416,8 +416,10 @@ describe('executeAction', () => {
       ttsAdapter: null,
       conversationClient: null,
       crmClient: { upsertLead: crmUpsert },
+      pendingLeadQueue: null,
       conversationEngineEnabled: false,
       crmServiceEnabled: true,
+      crmRecoveryQueueEnabled: false,
       asrMinConfidence: 0.6,
       greetingMessage: 'hello',
       logger: { error: loggerError },
@@ -434,5 +436,52 @@ describe('executeAction', () => {
       })
     );
     expect(loggerError).toHaveBeenCalledTimes(1);
+  });
+
+  test('queues partial lead for replay when CRM persistence fails and recovery queue enabled', async () => {
+    const crmUpsert = jest.fn().mockRejectedValue(new Error('CRM unavailable'));
+    const queueEnqueue = jest.fn();
+
+    const result = await executeAction({
+      action: 'close_call_session',
+      session: {
+        callControlId: 'call-close-3',
+        sessionId: 'session-close-3',
+        latestTranscript: 'Need a house in Austin',
+        latestEntities: {
+          phone: '+15550003333',
+          property_type: 'house',
+          budget: '2800',
+          location: 'Austin'
+        }
+      },
+      payload: {},
+      callSessionStore: { upsert: jest.fn() },
+      telnyxClient: null,
+      asrAdapter: null,
+      ttsAdapter: null,
+      conversationClient: null,
+      crmClient: { upsertLead: crmUpsert },
+      pendingLeadQueue: { enqueue: queueEnqueue },
+      conversationEngineEnabled: false,
+      crmServiceEnabled: true,
+      crmRecoveryQueueEnabled: true,
+      asrMinConfidence: 0.6,
+      greetingMessage: 'hello',
+      logger: { error: jest.fn() },
+      requestId: 'r-close-fail-queue'
+    });
+
+    expect(queueEnqueue).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'closed',
+        crm: expect.objectContaining({
+          status: 'failed',
+          reason: 'CRM unavailable',
+          queued_for_replay: true
+        })
+      })
+    );
   });
 });

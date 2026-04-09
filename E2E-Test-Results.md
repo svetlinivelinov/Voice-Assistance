@@ -437,3 +437,75 @@ Additional hardening and UX improvements completed beyond the initial P2 kickoff
   - Branches: 67.42%
   - Functions: 69.95%
   - Lines: 79.57%
+
+---
+
+## Callback Handoff Increment (Completed on April 9, 2026)
+
+Implemented operational callback handoff for CRM degraded mode in telephony-service:
+
+1. Pending lead replay queue
+  - Added in-process queue for partial leads when CRM persistence fails during `close_call_session`.
+  - Queue entries store lead payload, last error, attempts, and timestamps.
+2. Replay management API
+  - `GET /api/recovery/pending-leads` returns queue snapshot and count.
+  - `POST /api/recovery/pending-leads/replay` replays queued leads to CRM in bounded batches.
+3. Feature flag control
+  - Added `CRM_RECOVERY_QUEUE_ENABLED` (default `true`).
+4. Close-call integration
+  - On CRM outage, telephony now queues the lead and returns deterministic execution contract with `queued_for_replay`.
+
+### Files Updated for Callback Handoff
+
+- `services/telephony-service/src/services/pending-lead-queue.js`
+- `services/telephony-service/src/routes/recovery.js`
+- `services/telephony-service/src/app.js`
+- `services/telephony-service/src/routes/webhooks.js`
+- `services/telephony-service/src/services/execute-action.js`
+- `services/telephony-service/src/config.js`
+- `services/telephony-service/tests/recovery.test.js`
+- `services/telephony-service/tests/execute-action.test.js`
+
+### Validation After Callback Handoff
+
+- Lint: pass (`npm run lint`)
+- Tests: 30/30 suites pass, 220/220 tests pass (`npm test`)
+- Coverage:
+  - Statements: 79.29%
+  - Branches: 67.16%
+  - Functions: 70.38%
+  - Lines: 79.72%
+
+---
+
+## Durable Queue Persistence Increment (Completed on April 9, 2026)
+
+Implemented restart-safe persistence for the telephony pending lead replay queue:
+
+1. File-backed queue persistence (optional)
+  - Queue can load existing pending leads from disk at startup.
+  - Queue persists updates on enqueue, replay success, and replay failure.
+2. Feature-flagged configuration
+  - `CRM_RECOVERY_QUEUE_PERSIST_ENABLED` (default `false`)
+  - `CRM_RECOVERY_QUEUE_FILE_PATH` (default `./data/telephony-pending-leads.json`)
+3. Startup wiring
+  - Telephony app now initializes pending queue with persistence options from config.
+4. Regression tests
+  - Added tests for reload-after-restart behavior and replay persistence updates.
+
+### Files Updated for Durable Queue Persistence
+
+- `services/telephony-service/src/services/pending-lead-queue.js`
+- `services/telephony-service/src/config.js`
+- `services/telephony-service/src/app.js`
+- `services/telephony-service/tests/pending-lead-queue.test.js`
+
+### Validation After Durable Queue Persistence
+
+- Lint: pass (`npm run lint`)
+- Tests: 31/31 suites pass, 222/222 tests pass (`npm test`)
+- Coverage:
+  - Statements: 79.39%
+  - Branches: 67.33%
+  - Functions: 70.63%
+  - Lines: 79.81%

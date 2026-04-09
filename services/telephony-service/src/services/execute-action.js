@@ -32,9 +32,11 @@ async function executeAction({
   ttsAdapter,
   conversationClient,
   crmClient,
+  pendingLeadQueue,
   nlpClient,
   conversationEngineEnabled,
   crmServiceEnabled,
+  crmRecoveryQueueEnabled = false,
   asrMinConfidence = 0.6,
   greetingMessage,
   logger,
@@ -358,21 +360,21 @@ async function executeAction({
 
   if (action === 'close_call_session') {
     if (crmServiceEnabled && crmClient && session?.sessionId && !session?.crmPersistedAt) {
-      try {
-        const lead = {
-          client_id: session.sessionId,
-          phone: session?.latestEntities?.phone || payload?.data?.payload?.from,
-          name: session?.latestEntities?.name,
-          budget: session?.latestEntities?.budget,
-          location: session?.latestEntities?.location,
-          property_type: session?.latestEntities?.property_type,
-          move_in_date: session?.latestEntities?.move_in_date,
-          viewing_date: session?.latestEntities?.viewing_date,
-          notes: session?.latestTranscript || 'Partial lead captured from interrupted call',
-          status: 'new',
-          session_id: session.sessionId
-        };
+      const lead = {
+        client_id: session.sessionId,
+        phone: session?.latestEntities?.phone || payload?.data?.payload?.from,
+        name: session?.latestEntities?.name,
+        budget: session?.latestEntities?.budget,
+        location: session?.latestEntities?.location,
+        property_type: session?.latestEntities?.property_type,
+        move_in_date: session?.latestEntities?.move_in_date,
+        viewing_date: session?.latestEntities?.viewing_date,
+        notes: session?.latestTranscript || 'Partial lead captured from interrupted call',
+        status: 'new',
+        session_id: session.sessionId
+      };
 
+      try {
         await crmClient.upsertLead(lead, requestId);
 
         if (callSessionStore && session?.callControlId) {
@@ -390,6 +392,22 @@ async function executeAction({
           }
         };
       } catch (error) {
+        if (crmRecoveryQueueEnabled && pendingLeadQueue?.enqueue) {
+          pendingLeadQueue.enqueue({
+            lead,
+            reason: error.message,
+            requestId
+          });
+
+          if (callSessionStore && session?.callControlId) {
+            callSessionStore.upsert(session.callControlId, (previous) => ({
+              ...previous,
+              crmQueuedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }));
+          }
+        }
+
         logger.error({
           message: 'Failed to persist partial lead on call close',
           requestId,
@@ -401,7 +419,8 @@ async function executeAction({
           status: 'closed',
           crm: {
             status: 'failed',
-            reason: error.message
+            reason: error.message,
+            queued_for_replay: Boolean(crmRecoveryQueueEnabled && pendingLeadQueue?.enqueue)
           }
         };
       }
